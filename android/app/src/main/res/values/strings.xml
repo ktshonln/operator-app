@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">KatishaOperator</string>
+    <string name="welcome_to_katisha">Welcome to Katisha</string>
 </resources>
+
