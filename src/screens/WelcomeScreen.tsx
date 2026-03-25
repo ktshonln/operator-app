@@ -18,7 +18,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 
-const LOGO = require('../assets/images/new-b.png');
+const LOGO = require('../assets/images/new.png');
 
 export const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();

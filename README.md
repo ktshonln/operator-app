@@ -5,7 +5,7 @@ This is the mobile application for Katisha Operators, built with **React Native*
 ## Recent Updates & Features
 
 ### 🎨 Branding & UI
-- **New Branding**: All instances of the old logo have been replaced with the new `new-b.png` branding.
+- **New Branding**: All instances of the old logo have been replaced with the latest `new.png` branding.
 - **Improved Logo Sizing**: The logo has been resized on the Welcome and Forgot Password screens for better balance.
 - **Centered Layout**: Centered the typography on the Forgot Password screen for consistency with the Welcome screen.
 
