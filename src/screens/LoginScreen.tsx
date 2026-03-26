@@ -24,6 +24,7 @@ export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const toastOpacity = React.useRef(new Animated.Value(0)).current;
@@ -110,13 +111,18 @@ export const LoginScreen: React.FC = () => {
                 <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
                   Password
                 </Typography>
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••••••"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={styles.inputFlex}
+                    placeholder="••••••••"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
+                    <Typography style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Typography>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <TouchableOpacity 
@@ -227,6 +233,29 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    height: 50,
+  },
+  inputFlex: {
+    flex: 1,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  eyeButton: {
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 18,
   },
   forgotPassword: {
     alignSelf: 'flex-end',

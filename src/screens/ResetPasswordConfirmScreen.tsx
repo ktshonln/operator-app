@@ -22,6 +22,8 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleResetPassword = () => {
     if (!password || password !== confirmPassword) return;
@@ -63,26 +65,36 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
                     <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
                       New Password
                     </Typography>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="••••••••"
-                      secureTextEntry
-                      value={password}
-                      onChangeText={setPassword}
-                    />
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.inputFlex}
+                        placeholder="••••••••"
+                        secureTextEntry={!showPassword}
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+                      <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
+                        <Typography style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Typography>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <View style={styles.inputContainer}>
                     <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
                       Confirm New Password
                     </Typography>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="••••••••"
-                      secureTextEntry
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                    />
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.inputFlex}
+                        placeholder="••••••••"
+                        secureTextEntry={!showConfirm}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                      />
+                      <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirm(p => !p)}>
+                        <Typography style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Typography>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <TouchableOpacity 
@@ -164,6 +176,29 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    height: 55,
+  },
+  inputFlex: {
+    flex: 1,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  eyeButton: {
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 18,
   },
   button: {
     backgroundColor: COLORS.brand,
