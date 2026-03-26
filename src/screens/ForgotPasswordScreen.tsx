@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -35,6 +35,15 @@ export const ForgotPasswordScreen: React.FC = () => {
       setIsSuccess(true);
     }, 1500);
   };
+
+  useEffect(() => {
+    if (isSuccess) {
+      const timer = setTimeout(() => {
+        navigation.navigate('OTP');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess, navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -109,14 +118,12 @@ export const ForgotPasswordScreen: React.FC = () => {
                 <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.successText}>
                   A reset link has been sent to your email. Please check your inbox and follow the instructions.
                 </Typography>
-                <TouchableOpacity 
-                  style={[styles.button, { marginTop: 10, width: '100%' }]}
-                  onPress={() => navigation.goBack()}
-                >
-                  <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                      Return to Login
-                  </Typography>
-                </TouchableOpacity>
+                <View style={{ height: 40, justifyContent: 'center' }}>
+                  <ActivityIndicator color={COLORS.brand} size="small" />
+                </View>
+                <Typography variant="caption" color={COLORS.textSecondary} align="center" style={{ marginTop: 10 }}>
+                  Navigating to OTP verification in 3 seconds...
+                </Typography>
               </View>
             )}
 

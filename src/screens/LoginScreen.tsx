@@ -20,7 +20,7 @@ import { Typography } from '../components/Typography';
 
 const LOGO = require('../assets/images/new.png');
 
-export const WelcomeScreen: React.FC = () => {
+export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,7 +83,7 @@ export const WelcomeScreen: React.FC = () => {
               <Image 
                 source={LOGO} 
                 style={styles.logoTop} 
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
             
@@ -190,8 +190,7 @@ const styles = StyleSheet.create({
   },
   logoTopContainer: {
     alignItems: 'center',
-    marginBottom: -15, // Slightly less extreme negative margin for better balance
-    overflow: 'hidden',
+    marginBottom: 20, 
   },
   logoTop: {
     width: 120,
