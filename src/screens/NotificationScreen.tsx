@@ -1,47 +1,123 @@
 import React from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  SafeAreaView, 
+  StatusBar 
+} from 'react-native';
+import { useTranslation } from 'react-i18next';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const NOTIFICATIONS = [
-  { id: '1', title: 'New Booking', message: 'Ticket #4582 booked for Kgl - Msz', time: '2m ago', icon: 'ticket' },
-  { id: '2', title: 'Vehicle Alert', message: 'RAC 456 B has reached Musanze', time: '15m ago', icon: 'bus' },
-  { id: '3', title: 'Payment Confirmed', message: 'RWF 15,000 received for Agent #12', time: '1h ago', icon: 'cash' },
+  { 
+    id: '1', 
+    titleKey: 'notifications.newBooking', 
+    messageKey: 'notifications.newBookingMsg', 
+    time: '2m', 
+    icon: 'ticket-outline',
+    type: 'booking',
+    isUnread: true
+  },
+  { 
+    id: '2', 
+    titleKey: 'notifications.vehicleAlert', 
+    messageKey: 'notifications.vehicleAlertMsg', 
+    time: '15m', 
+    icon: 'bus-outline',
+    type: 'alert',
+    isUnread: true
+  },
+  { 
+    id: '3', 
+    titleKey: 'notifications.paymentConfirmed', 
+    messageKey: 'notifications.paymentConfirmedMsg', 
+    time: '1h', 
+    icon: 'cash-outline',
+    type: 'payment',
+    isUnread: false
+  },
+  { 
+    id: '4', 
+    titleKey: 'notifications.systemUpdate', 
+    messageKey: 'notifications.systemUpdateMsg', 
+    time: '3h', 
+    icon: 'refresh-circle-outline',
+    type: 'system',
+    isUnread: false
+  },
 ];
 
 export const NotificationScreen = ({ navigation }: any) => {
+  const { t } = useTranslation();
+
+  const getIconColor = (type: string) => {
+    switch (type) {
+      case 'booking': return '#3182CE';
+      case 'alert': return '#E53E3E';
+      case 'payment': return '#38A169';
+      case 'system': return '#805AD5';
+      default: return COLORS.brand;
+    }
+  };
+
+  const getBgColor = (type: string) => {
+    switch (type) {
+      case 'booking': return '#EBF8FF';
+      case 'alert': return '#FFF5F5';
+      case 'payment': return '#F0FFF4';
+      case 'system': return '#FAF5FF';
+      default: return '#F0F7FF';
+    }
+  };
+
   const renderItem = ({ item }: { item: typeof NOTIFICATIONS[0] }) => (
-    <TouchableOpacity style={styles.item}>
-      <View style={styles.iconCircle}>
-        <Ionicons name={item.icon} size={18} color={COLORS.brand} />
+    <TouchableOpacity style={[styles.item, item.isUnread && styles.unreadItem]}>
+      <View style={[styles.iconCircle, { backgroundColor: getBgColor(item.type) }]}>
+        <Ionicons name={item.icon} size={20} color={getIconColor(item.type)} />
       </View>
       <View style={styles.content}>
         <View style={styles.row}>
-          <Typography variant="body" style={styles.title}>{item.title}</Typography>
+          <Typography variant="body" style={[styles.title, item.isUnread && styles.unreadTitle]}>
+            {t(item.titleKey as any)}
+          </Typography>
           <Typography variant="caption" color={COLORS.textSecondary}>{item.time}</Typography>
         </View>
-        <Typography variant="caption" color={COLORS.textSecondary}>{item.message}</Typography>
+        <Typography variant="caption" color={COLORS.textSecondary} numberOfLines={2}>
+          {t(item.messageKey as any)}
+        </Typography>
       </View>
+      {item.isUnread && <View style={styles.unreadDot} />}
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       <Header 
-        title="Notifications" 
+        title={t('notifications.title')} 
         showBack 
         onBack={() => navigation.goBack()}
-        rightElement={<View />}
       />
       <FlatList
         data={NOTIFICATIONS}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="notifications-off-outline" size={60} color="#CBD5E0" />
+            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16 }}>
+              {t('notifications.empty')}
+            </Typography>
+          </View>
+        }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -56,21 +132,29 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#EDF2F7',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  unreadItem: {
+    borderColor: '#EBF8FF',
+    backgroundColor: '#FBFEFF',
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E6F0FF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   content: {
     flex: 1,
@@ -79,10 +163,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   title: {
-    fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 15,
+    color: COLORS.text,
   },
+  unreadTitle: {
+    fontWeight: 'bold',
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.brand,
+    marginLeft: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 100,
+  }
 });

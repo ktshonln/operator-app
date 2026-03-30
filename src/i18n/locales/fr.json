@@ -1,0 +1,118 @@
+{
+  "login": {
+    "welcome": "Bienvenue sur Katisha",
+    "email": "E-mail",
+    "emailPlaceholder": "operator@gmail.com",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "signIn": "Se connecter",
+    "loginSuccess": "Connexion réussie"
+  },
+  "forgotPassword": {
+    "backToLogin": "← Retour à la connexion",
+    "title": "Réinitialiser le mot de passe",
+    "description": "Entrez votre e-mail pour recevoir un lien de réinitialisation.",
+    "email": "E-mail",
+    "emailPlaceholder": "operator@gmail.com",
+    "sendLink": "Envoyer le lien",
+    "successMessage": "Un lien de réinitialisation a été envoyé à votre adresse e-mail. Veuillez vérifier votre boîte de réception.",
+    "redirecting": "Redirection vers la vérification OTP dans 3 secondes..."
+  },
+  "otp": {
+    "back": "← Retour",
+    "title": "Vérification",
+    "description": "Entrez le code à 6 chiffres envoyé à votre e-mail.",
+    "verify": "Vérifier le code",
+    "noCode": "Vous n'avez pas reçu le code ?",
+    "resend": "Renvoyer"
+  },
+  "resetPassword": {
+    "title": "Nouveau mot de passe",
+    "description": "Créez un nouveau mot de passe pour votre compte.",
+    "newPassword": "Nouveau mot de passe",
+    "confirmPassword": "Confirmer le nouveau mot de passe",
+    "reset": "Réinitialiser le mot de passe",
+    "successTitle": "Mot de passe réinitialisé !",
+    "successMessage": "Votre mot de passe a été mis à jour avec succès. Redirection vers la connexion..."
+  },
+  "settings": {
+    "title": "Profil de l'opérateur",
+    "adminName": "Administrateur",
+    "sectionAccount": "COMPTE",
+    "profile": "Profil",
+    "security": "Sécurité",
+    "alerts": "Alertes",
+    "alertsOn": "Activé",
+    "logout": "Déconnexion",
+    "language": "Langue",
+    "sectionLanguage": "LANGUE"
+  },
+  "fleet": {
+    "title": "Gestion de la flotte",
+    "statusOnRoute": "En route",
+    "statusWaiting": "En attente"
+  },
+  "trips": {
+    "title": "Historique des trajets",
+    "statusDone": "Terminé",
+    "statusWaiting": "En attente"
+  },
+  "ticketing": {
+    "title": "Billetterie",
+    "statusBooked": "Réservé",
+    "statusTransit": "En transit",
+    "statusDone": "Terminé"
+  },
+  "reports": {
+    "title": "Analytique",
+    "revenue": "Revenus",
+    "sales": "Ventes",
+    "usage": "Utilisation"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "newBooking": "Nouvelle réservation",
+    "newBookingMsg": "Ticket #4582 réservé pour Kgl - Msz",
+    "vehicleAlert": "Alerte véhicule",
+    "vehicleAlertMsg": "RAC 456 B est arrivé à Musanze",
+    "paymentConfirmed": "Paiement confirmé",
+    "paymentConfirmedMsg": "RWF 15 000 reçu pour l'agent #12"
+  },
+  "header": {
+    "searchPlaceholder": "Rechercher..."
+  },
+  "profile": {
+    "title": "Mon Profil",
+    "editAvatar": "Modifier la photo",
+    "firstName": "Prénom",
+    "lastName": "Nom",
+    "name": "Nom complet",
+    "email": "Email",
+    "phoneNumber": "Numéro de téléphone",
+    "save": "Enregistrer les modifications",
+    "updateSuccess": "Profil mis à jour avec succès",
+    "errorUpdate": "Erreur lors de la mise à jour"
+  },
+  "security": {
+    "title": "Changer le mot de passe",
+    "currentPassword": "Mot de passe actuel",
+    "newPassword": "Nouveau mot de passe",
+    "confirmPassword": "Confirmer le nouveau mot de passe",
+    "save": "Mettre à jour le mot de passe",
+    "success": "Mot de passe changé avec succès",
+    "errorMismatch": "Les mots de passe ne correspondent pas",
+    "errorRequired": "Tous les champs sont obligatoires"
+  },
+  "notifications": {
+    "title": "Alertes et Notifications",
+    "newBooking": "Nouvelle réservation",
+    "newBookingMsg": "Un passager vient de réserver un billet pour le prochain voyage.",
+    "vehicleAlert": "Alerte Véhicule",
+    "vehicleAlertMsg": "Le bus n° RA 123 B nécessite du carburant ou une révision.",
+    "paymentConfirmed": "Paiement Confirmé",
+    "paymentConfirmedMsg": "Le paiement par Mobile Money a été confirmé.",
+    "systemUpdate": "Mise à jour du système",
+    "systemUpdateMsg": "L'application Katisha a été mise à jour pour de meilleures performances.",
+    "empty": "Vous n'avez pas de nouvelles notifications pour le moment."
+  }
+}

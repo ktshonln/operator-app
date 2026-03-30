@@ -1,0 +1,109 @@
+{
+  "login": {
+    "welcome": "Murakaza neza kuri Katisha",
+    "email": "Imeyili",
+    "emailPlaceholder": "operator@gmail.com",
+    "password": "Ijambo banga",
+    "forgotPassword": "Wibagiwe ijambo banga?",
+    "signIn": "Injira",
+    "loginSuccess": "Kwinjira byagenze neza"
+  },
+  "forgotPassword": {
+    "backToLogin": "← Subira kwinjira",
+    "title": "Gusubiranya ijambo banga",
+    "description": "Andika imeyili yawe kugira ngo ubone uhuza wo gusubiranya ijambo banga.",
+    "email": "Imeyili",
+    "emailPlaceholder": "operator@gmail.com",
+    "sendLink": "Ohereza uhuza",
+    "successMessage": "Uhuza wo gusubiranya ijambo banga woherejwe kuri imeyili yawe. Reba imbwirwarugero yawe ukurikire amabwiriza.",
+    "redirecting": "Ugiye ugezwa kuri OTP mu masegonda 3..."
+  },
+  "otp": {
+    "back": "← Subira",
+    "title": "Kwemeza ubunyakuri",
+    "description": "Injiza kode y'imibare 6 yoherejwe kuri imeyili yawe.",
+    "verify": "Emeza kode",
+    "noCode": "Ntabwo wakiriye kode?",
+    "resend": "Ohereza nanone"
+  },
+  "resetPassword": {
+    "title": "Ijambo banga rishya",
+    "description": "Shyiraho ijambo banga rishya kuri konti yawe.",
+    "newPassword": "Ijambo banga rishya",
+    "confirmPassword": "Emeza ijambo banga rishya",
+    "reset": "Subiranya ijambo banga",
+    "successTitle": "Ijambo banga ryasubiranywe!",
+    "successMessage": "Ijambo banga ryawe ryahinduwe neza. Ugiye ugezwa ku kwinjira..."
+  },
+  "settings": {
+    "title": "Umwirondoro w'Operateri",
+    "adminName": "Umuyobozi",
+    "sectionAccount": "KONTI",
+    "profile": "Umwirondoro",
+    "security": "Umutekano",
+    "alerts": "Inyuburo (Alerts)",
+    "alertsOn": "Yafunguye",
+    "logout": "Gusohoka",
+    "sectionLanguage": "URURIMI",
+    "language": "Ururimi"
+  },
+  "fleet": {
+    "title": "Imodoka",
+    "statusOnRoute": "Mu nzira",
+    "statusWaiting": "Gutegereza"
+  },
+  "trips": {
+    "title": "Ingendo",
+    "statusDone": "Byarangiye",
+    "statusWaiting": "Gutegereza"
+  },
+  "ticketing": {
+    "title": "Amatike",
+    "statusBooked": "Bafite",
+    "statusTransit": "Mu nzira",
+    "statusDone": "Byarangiye"
+  },
+  "reports": {
+    "title": "Isesengura",
+    "revenue": "Inyungu",
+    "sales": "Ibigurishwa",
+    "usage": "Ikoreshwa"
+  },
+  "header": {
+    "searchPlaceholder": "Shakisha..."
+  },
+  "profile": {
+    "title": "Umwirondoro wanjye",
+    "editAvatar": "Hindura ifoto",
+    "firstName": "Izina rya mbere",
+    "lastName": "Izina rya kabiri",
+    "name": "Izina ryuzuye",
+    "email": "Imeyili",
+    "phoneNumber": "Nimero ya terefone",
+    "save": "Bika impinduka",
+    "updateSuccess": "Umwirondoro wavuguruwe neza",
+    "errorUpdate": "Habayemo ikibazo mu kuvugurura"
+  },
+  "security": {
+    "title": "Guhindura ijambo ry'ibanga",
+    "currentPassword": "Ijambo ry'ibanga rya none",
+    "newPassword": "Ijambo ry'ibanga rishya",
+    "confirmPassword": "Subiramo ijambo ry'ibanga rishya",
+    "save": "Hindura ijambo ry'ibanga",
+    "success": "Ijambo ry'ibanga ryahinduwe neza",
+    "errorMismatch": "Amagambo y'ibanga ntabwo ahura",
+    "errorRequired": "Amashakiro yose ni ngombwa"
+  },
+  "notifications": {
+    "title": "Inyuburo (Alerts)",
+    "newBooking": "Itike nshya",
+    "newBookingMsg": "Umugenzi aguze itike nshya kuri bisi itaha.",
+    "vehicleAlert": "Ikibazo cya bisi",
+    "vehicleAlertMsg": "Bisi No. RA 123 B ikeneye amavuta cyangwa gusuzumwa.",
+    "paymentConfirmed": "Ubwishyu bwemejwe",
+    "paymentConfirmedMsg": "Ubwishyu bw'itike ya Mobile Money bwemejwe.",
+    "systemUpdate": "Kuvugurura sisitemu",
+    "systemUpdateMsg": "Porogaramu ya Katisha yavuguruwe kugira ngo ikore neza.",
+    "empty": "Nta nyuburo nshya ufite kugeza ubu."
+  }
+}

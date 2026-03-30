@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
-
-const TICKETS = [
-  { id: '1', route: 'Kgl - Msz', time: '08:30 AM', price: '2,500', status: 'Booked' },
-  { id: '2', route: 'Kgl - Rbv', time: '10:00 AM', price: '3,500', status: 'Transit' },
-  { id: '3', route: 'Kgl - Hye', time: '11:15 AM', price: '3,000', status: 'Done' },
-];
-
 import { Header } from '../components/Header';
 
+const TICKETS = [
+  { id: '1', route: 'Kgl - Msz', time: '08:30 AM', price: '2,500', statusKey: 'ticketing.statusBooked' },
+  { id: '2', route: 'Kgl - Rbv', time: '10:00 AM', price: '3,500', statusKey: 'ticketing.statusTransit' },
+  { id: '3', route: 'Kgl - Hye', time: '11:15 AM', price: '3,000', statusKey: 'ticketing.statusDone' },
+];
+
 export const TicketingScreen: React.FC = () => {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   
-  const filteredTickets = TICKETS.filter(t => 
-    t.route.toLowerCase().includes(search.toLowerCase()) ||
-    t.status.toLowerCase().includes(search.toLowerCase())
+  const filteredTickets = TICKETS.filter(ticket =>
+    ticket.route.toLowerCase().includes(search.toLowerCase())
   );
 
   const renderItem = ({ item }: { item: typeof TICKETS[0] }) => (
@@ -24,7 +24,7 @@ export const TicketingScreen: React.FC = () => {
       <View style={styles.row}>
         <Typography variant="body" style={styles.routeText}>{item.route}</Typography>
         <View style={styles.statusDot} />
-        <Typography variant="caption">{item.status}</Typography>
+        <Typography variant="caption">{t(item.statusKey as any)}</Typography>
       </View>
       <View style={styles.footer}>
         <Typography variant="caption">{item.time}</Typography>
@@ -35,7 +35,7 @@ export const TicketingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Header title="Ticketing" onSearch={setSearch} />
+      <Header title={t('ticketing.title')} onSearch={setSearch} />
       <FlatList
         data={filteredTickets}
         renderItem={renderItem}
@@ -50,17 +50,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F7FAFC',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  headerTitle: {
-    fontSize: 20,
-    color: COLORS.brand,
   },
   listContent: {
     padding: 12,

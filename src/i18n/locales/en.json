@@ -1,0 +1,109 @@
+{
+  "login": {
+    "welcome": "Welcome to Katisha",
+    "email": "Email",
+    "emailPlaceholder": "operator@gmail.com",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "signIn": "Sign in",
+    "loginSuccess": "Login Successful"
+  },
+  "forgotPassword": {
+    "backToLogin": "← Back to Login",
+    "title": "Reset Password",
+    "description": "Enter your email for a password reset link.",
+    "email": "Email",
+    "emailPlaceholder": "operator@gmail.com",
+    "sendLink": "Send Reset Link",
+    "successMessage": "A reset link has been sent to your email. Please check your inbox and follow the instructions.",
+    "redirecting": "Navigating to OTP verification in 3 seconds..."
+  },
+  "otp": {
+    "back": "← Back",
+    "title": "Verification",
+    "description": "Enter the 6-digit code sent to your email.",
+    "verify": "Verify Code",
+    "noCode": "Didn't receive code?",
+    "resend": "Resend"
+  },
+  "resetPassword": {
+    "title": "New Password",
+    "description": "Create a new password for your account.",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "reset": "Reset Password",
+    "successTitle": "Password Reset!",
+    "successMessage": "Your password has been successfully updated. Redirecting to login..."
+  },
+  "settings": {
+    "title": "Operator Profile",
+    "adminName": "Admin Operator",
+    "sectionAccount": "ACCOUNT",
+    "profile": "Profile",
+    "security": "Security",
+    "alerts": "Alerts",
+    "alertsOn": "On",
+    "logout": "Logout",
+    "sectionLanguage": "LANGUAGE",
+    "language": "Language"
+  },
+  "fleet": {
+    "title": "Fleet Management",
+    "statusOnRoute": "On Route",
+    "statusWaiting": "Wait"
+  },
+  "trips": {
+    "title": "Trip History",
+    "statusDone": "Done",
+    "statusWaiting": "Wait"
+  },
+  "ticketing": {
+    "title": "Ticketing",
+    "statusBooked": "Booked",
+    "statusTransit": "Transit",
+    "statusDone": "Done"
+  },
+  "reports": {
+    "title": "Analytics",
+    "revenue": "Revenue",
+    "sales": "Sales",
+    "usage": "Usage"
+  },
+  "header": {
+    "searchPlaceholder": "Search..."
+  },
+  "profile": {
+    "title": "My Profile",
+    "editAvatar": "Change Photo",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "name": "Full Name",
+    "email": "Email",
+    "phoneNumber": "Phone Number",
+    "save": "Save Changes",
+    "updateSuccess": "Profile updated successfully",
+    "errorUpdate": "Error updating profile"
+  },
+  "security": {
+    "title": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "save": "Update Password",
+    "success": "Password changed successfully",
+    "errorMismatch": "Passwords do not match",
+    "errorRequired": "All fields are required"
+  },
+  "notifications": {
+    "title": "Alerts & Notifications",
+    "newBooking": "New Ticket Booking",
+    "newBookingMsg": "A passenger has just booked a ticket for the next trip.",
+    "vehicleAlert": "Vehicle Maintenance",
+    "vehicleAlertMsg": "Bus No. RA 123 B requires fuel or maintenance check.",
+    "paymentConfirmed": "Payment Confirmed",
+    "paymentConfirmedMsg": "Ticket payment via Mobile Money has been confirmed.",
+    "systemUpdate": "System Update",
+    "systemUpdateMsg": "Katisha App has been updated for better performance.",
+    "empty": "You have no new notifications at the moment."
+  }
+}

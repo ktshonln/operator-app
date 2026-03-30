@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 
 export const OTPScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const { t } = useTranslation();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -66,16 +68,16 @@ export const OTPScreen: React.FC = () => {
               onPress={() => navigation.goBack()}
             >
               <Typography variant="body" color={COLORS.brand}>
-                ← Back
+                {t('otp.back')}
               </Typography>
             </TouchableOpacity>
 
             <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-              Verification
+              {t('otp.title')}
             </Typography>
             
             <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-              Enter the 6-digit code sent to your email.
+              {t('otp.description')}
             </Typography>
 
             <View style={styles.otpContainer}>
@@ -102,16 +104,16 @@ export const OTPScreen: React.FC = () => {
                 <ActivityIndicator color={COLORS.white} />
               ) : (
                 <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                  Verify Code
+                  {t('otp.verify')}
                 </Typography>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.resendContainer}>
               <Typography variant="caption" color={COLORS.textSecondary}>
-                Didn't receive code?{' '}
+                {t('otp.noCode')}{' '}
                 <Typography variant="caption" color={COLORS.brand} style={{ fontWeight: 'bold' }}>
-                  Resend
+                  {t('otp.resend')}
                 </Typography>
               </Typography>
             </TouchableOpacity>

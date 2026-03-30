@@ -1,13 +1,13 @@
 import React from 'react';
-import { View, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 import { TicketingScreen } from '../screens/TicketingScreen';
 import { FleetScreen } from '../screens/FleetScreen';
 import { TripScreen } from '../screens/TripScreen';
 import { ReportScreen } from '../screens/ReportScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
 import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -30,6 +30,8 @@ const TabIcon = ({ name, focused, color }: { name: string, focused: boolean, col
 };
 
 export const MainTabNavigator = () => {
+  const { t } = useTranslation();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -37,7 +39,7 @@ export const MainTabNavigator = () => {
         tabBarActiveTintColor: COLORS.brand,
         tabBarInactiveTintColor: COLORS.textSecondary,
         headerShown: false,
-        tabBarShowLabel: true, // Re-enabled labels
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontSize: 9,
           fontWeight: '600',
@@ -46,11 +48,26 @@ export const MainTabNavigator = () => {
         tabBarStyle: styles.tabBar,
       })}
     >
-      <Tab.Screen name="Ticketing" component={TicketingScreen} />
-      <Tab.Screen name="Fleets" component={FleetScreen} />
-      <Tab.Screen name="Trips" component={TripScreen} />
-      <Tab.Screen name="Reports" component={ReportScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen
+        name="Ticketing"
+        component={TicketingScreen}
+        options={{ tabBarLabel: t('ticketing.title') }}
+      />
+      <Tab.Screen
+        name="Fleets"
+        component={FleetScreen}
+        options={{ tabBarLabel: t('fleet.title') }}
+      />
+      <Tab.Screen
+        name="Trips"
+        component={TripScreen}
+        options={{ tabBarLabel: t('trips.title') }}
+      />
+      <Tab.Screen
+        name="Reports"
+        component={ReportScreen}
+        options={{ tabBarLabel: t('reports.title') }}
+      />
     </Tab.Navigator>
   );
 };
@@ -58,22 +75,19 @@ export const MainTabNavigator = () => {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 25,
+    bottom: Platform.OS === 'ios' ? 30 : 20,
     left: 20,
     right: 20,
-    height: 62, 
+    height: 64,
     backgroundColor: COLORS.white,
-    borderRadius: 31,
-  
+    borderRadius: 32,
     borderTopWidth: 0,
-    elevation: 4,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
     paddingBottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   iconWrapper: {
     width: 36,
@@ -81,7 +95,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Platform.OS === 'ios' ? 0 : 0, // Fix for android centering
+    marginTop: 2,
   },
   activeBubble: {
     backgroundColor: '#E6F0FF',

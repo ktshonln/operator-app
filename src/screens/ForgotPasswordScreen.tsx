@@ -14,13 +14,16 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const LOGO = require('../assets/images/new.png');
 
 export const ForgotPasswordScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -54,8 +57,6 @@ export const ForgotPasswordScreen: React.FC = () => {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
-
-
             {!isSuccess ? (
               <View style={styles.form}>
                 <View style={styles.header}>
@@ -64,7 +65,7 @@ export const ForgotPasswordScreen: React.FC = () => {
                     onPress={() => navigation.goBack()}
                     >
                     <Typography variant="body" color={COLORS.brand}>
-                      ← Back to Login
+                      {t('forgotPassword.backToLogin')}
                     </Typography>
                   </TouchableOpacity>
                 </View>
@@ -76,19 +77,19 @@ export const ForgotPasswordScreen: React.FC = () => {
                   />
                 </View>
                 <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-                  Reset Password
+                  {t('forgotPassword.title')}
                 </Typography>
                 
                 <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-                  Enter your email for a password reset link.
+                  {t('forgotPassword.description')}
                 </Typography>
                 <View style={styles.inputContainer}>
                   <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                    Email
+                    {t('forgotPassword.email')}
                   </Typography>
                   <TextInput
                     style={styles.input}
-                    placeholder="admin@routiq.com"
+                    placeholder={t('forgotPassword.emailPlaceholder')}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
@@ -105,7 +106,7 @@ export const ForgotPasswordScreen: React.FC = () => {
                     <ActivityIndicator color={COLORS.white} />
                   ) : (
                     <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                        Send Reset Link
+                      {t('forgotPassword.sendLink')}
                     </Typography>
                   )}
                 </TouchableOpacity>
@@ -113,24 +114,21 @@ export const ForgotPasswordScreen: React.FC = () => {
             ) : (
               <View style={styles.successContainer}>
                 <View style={styles.successIcon}>
-                  <Typography color={COLORS.white} variant="h1" style={{ fontSize: 40 }}>✓</Typography>
+                  <Ionicons name="checkmark" size={40} color={COLORS.white} />
                 </View>
                 <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.successText}>
-                  A reset link has been sent to your email. Please check your inbox and follow the instructions.
+                  {t('forgotPassword.successMessage')}
                 </Typography>
                 <View style={{ height: 40, justifyContent: 'center' }}>
                   <ActivityIndicator color={COLORS.brand} size="small" />
                 </View>
                 <Typography variant="caption" color={COLORS.textSecondary} align="center" style={{ marginTop: 10 }}>
-                  Navigating to OTP verification in 3 seconds...
+                  {t('forgotPassword.redirecting')}
                 </Typography>
               </View>
             )}
 
           </View>
-
-         
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

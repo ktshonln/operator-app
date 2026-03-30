@@ -1,3 +1,4 @@
+// v2 - Corrected JSX tags
 import React, { useState } from 'react';
 import { 
   View, 
@@ -15,13 +16,16 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const LOGO = require('../assets/images/new.png');
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const { t, i18n } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -79,6 +83,30 @@ export const LoginScreen: React.FC = () => {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.languageSwitcherTop}>
+            {[
+              { code: 'rw', label: 'RW' },
+              { code: 'en', label: 'EN' },
+              { code: 'fr', label: 'FR' },
+            ].map((lang) => (
+              <TouchableOpacity 
+                key={lang.code}
+                style={[
+                  styles.langBtn,
+                  i18n.language === lang.code && styles.langBtnActive
+                ]}
+                onPress={() => i18n.changeLanguage(lang.code)}
+              >
+                {i18n.language === lang.code && (
+                  <Ionicons name="checkmark-circle" size={14} color={COLORS.brand} style={{ marginRight: 4 }} />
+                )}
+                <Typography variant="caption" style={{ fontWeight: 'bold', color: i18n.language === lang.code ? COLORS.brand : COLORS.textSecondary }}>
+                  {lang.label}
+                </Typography>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <View style={styles.content}>
             <View style={styles.logoTopContainer}>
               <Image 
@@ -89,17 +117,17 @@ export const LoginScreen: React.FC = () => {
             </View>
             
             <Typography variant="h2" color={COLORS.text} align="center" style={styles.welcomeTitle}>
-               Welcome to Katisha
+              {t('login.welcome')}
             </Typography>
             
             <View style={styles.form}>
               <View style={styles.inputContainer}>
                 <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                  Email
+                  {t('login.email')}
                 </Typography>
                 <TextInput
                   style={styles.input}
-                  placeholder="admin@routiq.com"
+                  placeholder={t('login.emailPlaceholder')}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -109,7 +137,7 @@ export const LoginScreen: React.FC = () => {
 
               <View style={styles.inputContainer}>
                 <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                  Password
+                  {t('login.password')}
                 </Typography>
                 <View style={styles.inputRow}>
                   <TextInput
@@ -120,7 +148,11 @@ export const LoginScreen: React.FC = () => {
                     secureTextEntry={!showPassword}
                   />
                   <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
-                    <Typography style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Typography>
+                    <Ionicons 
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                      size={20} 
+                      color={COLORS.textSecondary} 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -130,7 +162,7 @@ export const LoginScreen: React.FC = () => {
                 onPress={() => navigation.navigate('ForgotPassword')}
               >
                 <Typography variant="caption" color={COLORS.brand} align="right">
-                  Forgot Password?
+                  {t('login.forgotPassword')}
                 </Typography>
               </TouchableOpacity>
 
@@ -143,15 +175,12 @@ export const LoginScreen: React.FC = () => {
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
                   <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                      Sign in
+                    {t('login.signIn')}
                   </Typography>
                 )}
               </TouchableOpacity>
             </View>
-
           </View>
-
-       
         </ScrollView>
 
         {showToast && (
@@ -164,21 +193,18 @@ export const LoginScreen: React.FC = () => {
           ]}>
             <View style={styles.toastContent}>
               <View style={styles.toastIcon}>
-                 <Typography color={COLORS.white} style={{ fontSize: 14, fontWeight: 'bold' }}>✓</Typography>
+                 <Ionicons name="checkmark" size={14} color={COLORS.white} />
               </View>
               <Typography color={COLORS.white} variant="body" style={{ fontWeight: '600', fontSize: 15 }}>
-                Login Successful
+                {t('login.loginSuccess')}
               </Typography>
             </View>
           </Animated.View>
         )}
-
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
@@ -200,17 +226,14 @@ const styles = StyleSheet.create({
   },
   logoTop: {
     width: 120,
-    height: 110, // Restoring more of the original logo height
+    height: 110,
   },
   welcomeTitle: {
     fontSize: 26,
     fontWeight: '600',
     marginTop: 0,
-    marginBottom: 20, // Restored title bottom margin
+    marginBottom: 20,
   },
-
-
-
   form: {
     width: '100%',
   },
@@ -290,7 +313,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   toastContent: {
-    backgroundColor: '#10B981', // More vibrant emerald green
+    backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
@@ -311,6 +334,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
+  languageSwitcherTop: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    marginTop: 10,
+    gap: 8,
+  },
+  langBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#F7FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  langBtnActive: {
+    backgroundColor: '#E6F0FF',
+    borderColor: COLORS.brand,
+  },
 });
-
-

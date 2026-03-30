@@ -1,15 +1,18 @@
-import { View, StyleSheet, SafeAreaView, FlatList } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
-
-const TRIPS = [
-  { id: '1', date: '23 Mar', route: 'Kgl - Msz', driver: 'John', status: 'Done' },
-  { id: '2', date: '23 Mar', route: 'Kgl - Rbv', driver: 'Jane', status: 'Wait' },
-];
-
 import { Header } from '../components/Header';
 
+const TRIPS = [
+  { id: '1', date: '23 Mar', route: 'Kgl - Msz', driver: 'John', statusKey: 'trips.statusDone' },
+  { id: '2', date: '23 Mar', route: 'Kgl - Rbv', driver: 'Jane', statusKey: 'trips.statusWaiting' },
+];
+
 export const TripScreen: React.FC = () => {
+  const { t } = useTranslation();
+
   const renderItem = ({ item }: { item: typeof TRIPS[0] }) => (
     <View style={styles.card}>
       <View style={styles.left}>
@@ -18,14 +21,16 @@ export const TripScreen: React.FC = () => {
       </View>
       <View style={styles.right}>
         <Typography variant="caption" color={COLORS.brand}>{item.driver}</Typography>
-        <Typography variant="caption" style={{ color: item.status === 'Done' ? '#38A169' : '#D69E2E' }}>{item.status}</Typography>
+        <Typography variant="caption" style={{ color: item.statusKey === 'trips.statusDone' ? '#38A169' : '#D69E2E' }}>
+          {t(item.statusKey as any)}
+        </Typography>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Header title="Trip History" />
+      <Header title={t('trips.title')} />
       <FlatList
         data={TRIPS}
         renderItem={renderItem}
@@ -40,17 +45,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F7FAFC',
-  },
-  header: {
-    padding: 12,
-    paddingHorizontal: 20,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  headerTitle: {
-    fontSize: 20,
-    color: COLORS.brand,
   },
   list: {
     padding: 12,

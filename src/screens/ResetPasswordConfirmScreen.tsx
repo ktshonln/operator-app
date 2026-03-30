@@ -13,11 +13,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export const ResetPasswordConfirmScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,17 +56,17 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
             {!isSuccess ? (
               <>
                 <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-                  New Password
+                  {t('resetPassword.title')}
                 </Typography>
                 
                 <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-                  Create a new password for your account.
+                  {t('resetPassword.description')}
                 </Typography>
 
                 <View style={styles.form}>
                   <View style={styles.inputContainer}>
                     <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                      New Password
+                      {t('resetPassword.newPassword')}
                     </Typography>
                     <View style={styles.inputRow}>
                       <TextInput
@@ -74,14 +77,18 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
                         onChangeText={setPassword}
                       />
                       <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
-                        <Typography style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Typography>
+                        <Ionicons 
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                          size={20} 
+                          color={COLORS.textSecondary} 
+                        />
                       </TouchableOpacity>
                     </View>
                   </View>
 
                   <View style={styles.inputContainer}>
                     <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                      Confirm New Password
+                      {t('resetPassword.confirmPassword')}
                     </Typography>
                     <View style={styles.inputRow}>
                       <TextInput
@@ -92,7 +99,11 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
                         onChangeText={setConfirmPassword}
                       />
                       <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirm(p => !p)}>
-                        <Typography style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Typography>
+                        <Ionicons 
+                          name={showConfirm ? 'eye-off-outline' : 'eye-outline'} 
+                          size={20} 
+                          color={COLORS.textSecondary} 
+                        />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -106,7 +117,7 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
                       <ActivityIndicator color={COLORS.white} />
                     ) : (
                       <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                        Reset Password
+                        {t('resetPassword.reset')}
                       </Typography>
                     )}
                   </TouchableOpacity>
@@ -115,13 +126,13 @@ export const ResetPasswordConfirmScreen: React.FC = () => {
             ) : (
               <View style={styles.successContainer}>
                 <View style={styles.successIcon}>
-                  <Typography color={COLORS.white} variant="h1" style={{ fontSize: 40 }}>✓</Typography>
+                  <Ionicons name="checkmark" size={40} color={COLORS.white} />
                 </View>
                 <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-                  Password Reset!
+                  {t('resetPassword.successTitle')}
                 </Typography>
                 <Typography variant="body" color={COLORS.textSecondary} align="center">
-                  Your password has been successfully updated. Redirecting to login...
+                  {t('resetPassword.successMessage')}
                 </Typography>
               </View>
             )}

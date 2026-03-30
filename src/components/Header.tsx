@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Typography } from './Typography';
 import { COLORS } from '../theme/colors';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -15,6 +16,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightElement, onSearch }) => {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -42,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
               </TouchableOpacity>
               <TextInput
                 autoFocus
-                placeholder="Search..."
+                placeholder={t('header.searchPlaceholder')}
                 style={styles.searchInput}
                 value={query}
                 onChangeText={handleSearch}
@@ -85,9 +87,12 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
                         <View style={styles.badge} />
                       </View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('Main', { screen: 'Settings' })}>
+                    <TouchableOpacity 
+                      style={styles.profileButton} 
+                      onPress={() => navigation.navigate('Settings')}
+                    >
                       <View style={styles.avatarCircle}>
-                        <Typography variant="caption" color={COLORS.white} style={{ fontSize: 10, fontWeight: 'bold' }}>AD</Typography>
+                        <Ionicons name="settings-outline" size={18} color={COLORS.white} />
                       </View>
                     </TouchableOpacity>
                   </View>

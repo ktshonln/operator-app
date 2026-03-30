@@ -1,30 +1,33 @@
-import { View, StyleSheet, SafeAreaView, FlatList } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
-
-const FLEETS = [
-  { id: '1', plate: 'RAE 123 A', type: 'Bus', status: 'On Route' },
-  { id: '2', plate: 'RAC 456 B', type: 'Minibus', status: 'Wait' },
-];
-
 import { Header } from '../components/Header';
 
+const FLEETS = [
+  { id: '1', plate: 'RAE 123 A', type: 'Bus', statusKey: 'fleet.statusOnRoute' },
+  { id: '2', plate: 'RAC 456 B', type: 'Minibus', statusKey: 'fleet.statusWaiting' },
+];
+
 export const FleetScreen: React.FC = () => {
+  const { t } = useTranslation();
+
   const renderItem = ({ item }: { item: typeof FLEETS[0] }) => (
     <View style={styles.card}>
       <View>
         <Typography variant="body" style={styles.plate}>{item.plate}</Typography>
         <Typography variant="caption">{item.type}</Typography>
       </View>
-      <View style={[styles.badge, { backgroundColor: item.status === 'On Route' ? '#C6F6D5' : '#E2E8F0' }]}>
-        <Typography variant="caption" style={{ fontSize: 10 }}>{item.status}</Typography>
+      <View style={[styles.badge, { backgroundColor: item.statusKey === 'fleet.statusOnRoute' ? '#C6F6D5' : '#E2E8F0' }]}>
+        <Typography variant="caption" style={{ fontSize: 10 }}>{t(item.statusKey as any)}</Typography>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Header title="Fleet Management" />
+      <Header title={t('fleet.title')} />
       <FlatList
         data={FLEETS}
         renderItem={renderItem}
@@ -39,17 +42,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F7FAFC',
-  },
-  header: {
-    padding: 12,
-    paddingHorizontal: 20,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  headerTitle: {
-    fontSize: 20,
-    color: COLORS.brand,
   },
   list: {
     padding: 12,
