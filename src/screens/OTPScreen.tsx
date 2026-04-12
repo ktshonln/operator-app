@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -11,18 +11,42 @@ import {
   ScrollView,
   ActivityIndicator
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
+import { apiClient } from '../api/client';
+import { Alert } from 'react-native';
+
 
 export const OTPScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const route = useRoute();
   const { t } = useTranslation();
+  
+  // Get identifier from navigation params
+  const { identifier } = route.params as { identifier?: string };
+  
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  const [resendTimer, setResendTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  
+  // Determine verification type based on identifier format
+  const verificationType = identifier && identifier.includes('@') ? 'email' : 'phone';
+
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => {
+        setResendTimer(resendTimer - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [resendTimer]);
 
   const handleChange = (text: string, index: number) => {
     if (text.length > 1) {
@@ -43,16 +67,59 @@ export const OTPScreen: React.FC = () => {
     }
   };
 
-  const handleVerify = () => {
-    if (otp.join('').length < 6) return;
-    setLoading(true);
+  const handleVerify = async () => {
+    const otpCode = otp.join('');
+    if (otpCode.length < 6) return;
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      navigation.navigate('ResetPasswordConfirm');
-    }, 1500);
+    if (!identifier) {
+      Alert.alert(t('common.error'), 'Missing identifier. Please start over.');
+      navigation.navigate('ForgotPassword');
+      return;
+    }
+    
+    // Just validate OTP format and navigate to password reset screen
+    // The actual API call will be made in ResetPasswordConfirm screen with new password
+    navigation.navigate('ResetPasswordConfirm', { 
+      identifier: identifier, 
+      otp: otpCode 
+    });
   };
+
+  const handleResendOTP = async () => {
+    if (!canResend || !identifier) return;
+    
+    try {
+      // Use the reset-otp endpoint for resending OTP
+      const requestBody: any = {
+        user_id: identifier, // Use identifier as user_id
+        purpose: "password_reset"
+      };
+      
+      // Add the appropriate verification field based on type
+      if (verificationType === 'phone') {
+        requestBody.phone_verification = "resend";
+      } else {
+        requestBody.email_verification = "resend";
+      }
+      
+      await apiClient('/auth/reset-otp', {
+        method: 'POST',
+        body: requestBody,
+      });
+      
+      Alert.alert(t('common.success'), 'OTP has been resent successfully');
+      
+      // Clear current OTP input and restart timer
+      setOtp(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+      setResendTimer(60);
+      setCanResend(false);
+      
+    } catch (error: any) {
+      Alert.alert(t('common.error'), error.message || 'Failed to resend OTP');
+    }
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -82,9 +149,10 @@ export const OTPScreen: React.FC = () => {
 
             <View style={styles.otpContainer}>
               {otp.map((digit, index) => (
+                // @ts-ignore - TypeScript issue with React Native TextInput props
                 <TextInput
                   key={index}
-                  ref={(ref) => { inputRefs.current[index] = ref; }}
+                  ref={(ref: any) => { inputRefs.current[index] = ref; }}
                   style={styles.otpInput}
                   keyboardType="number-pad"
                   maxLength={1}
@@ -109,11 +177,15 @@ export const OTPScreen: React.FC = () => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.resendContainer}>
+            <TouchableOpacity 
+              style={[styles.resendContainer, !canResend && { opacity: 0.5 }]} 
+              onPress={handleResendOTP}
+              disabled={!canResend}
+            >
               <Typography variant="caption" color={COLORS.textSecondary}>
                 {t('otp.noCode')}{' '}
-                <Typography variant="caption" color={COLORS.brand} style={{ fontWeight: 'bold' }}>
-                  {t('otp.resend')}
+                <Typography variant="caption" color={canResend ? COLORS.brand : COLORS.textSecondary} style={{ fontWeight: 'bold' }}>
+                  {canResend ? t('otp.resend') : `${t('otp.resend')} (${resendTimer}s)`}
                 </Typography>
               </Typography>
             </TouchableOpacity>

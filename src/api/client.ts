@@ -1,5 +1,6 @@
 import { API_CONFIG } from './config';
 import { authStore } from './authStore';
+import { Organization } from '../types/organization';
 
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -60,6 +61,22 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}) 
     }
 
     if (!response.ok) {
+      // Handle token expiration globally
+      if (response.status === 401) {
+        // Clear expired token
+        await authStore.clearAll();
+        
+        // Extract meaningful error messages
+        let errorMessage = 'Your session has expired. Please login again.';
+        
+        throw {
+          status: response.status,
+          message: errorMessage,
+          data,
+          isTokenExpired: true,
+        };
+      }
+      
       // Extract meaningful error messages
       let errorMessage = 'Something went wrong';
       
@@ -70,7 +87,18 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}) 
           // Convert error codes to user-friendly messages
           switch (data.error.code) {
             case 'VALIDATION_ERROR':
-              errorMessage = 'Please check your input and try again';
+              // Extract detailed validation errors
+              if (data.error.details && Array.isArray(data.error.details)) {
+                const validationErrors = data.error.details.map((detail: any) => {
+                  if (typeof detail === 'string') return detail;
+                  if (detail.message) return detail.message;
+                  if (detail.field && detail.error) return `${detail.field}: ${detail.error}`;
+                  return JSON.stringify(detail);
+                }).join(', ');
+                errorMessage = `Validation failed: ${validationErrors}`;
+              } else {
+                errorMessage = 'Please check your input and try again';
+              }
               break;
             case 'INVALID_CREDENTIALS':
               errorMessage = 'Invalid email/phone or password';
@@ -125,4 +153,19 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}) 
       data: null,
     };
   }
+};
+
+// Organization API functions
+export const getMyOrganization = async (): Promise<Organization> => {
+  return apiClient('/organizations/me', {
+    method: 'GET',
+  });
+};
+
+export const updateOrganization = async (id: string, data: Partial<Organization>): Promise<Organization> => {
+  console.log('Updating organization with data:', data);
+  return apiClient(`/organizations/${id}`, {
+    method: 'PATCH',
+    body: data,
+  });
 };

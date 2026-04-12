@@ -78,11 +78,11 @@ export const ForgotPasswordScreen: React.FC = () => {
   useEffect(() => {
     if (isSuccess) {
       const timer = setTimeout(() => {
-        navigation.navigate('OTP');
+        navigation.navigate('OTP', { identifier: identifier });
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccess, navigation]);
+  }, [isSuccess, navigation, identifier]);
 
   return (
     <SafeAreaView style={styles.container}>

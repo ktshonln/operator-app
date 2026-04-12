@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
-import SplashScreen from 'react-native-splash-screen';
+import * as SplashScreen from 'expo-splash-screen';
+
 import './src/i18n'; // initialise i18next with Kinyarwanda as default language
+import './src/types/navigation'; // navigation types
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -13,13 +15,21 @@ import { ResetPasswordConfirmScreen } from './src/screens/ResetPasswordConfirmSc
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ChangePasswordScreen } from './src/screens/ChangePasswordScreen';
+import { UsersListScreen } from './src/screens/UsersListScreen';
+import { UserDetailsScreen } from './src/screens/UserDetailsScreen';
+import { UserFormScreen } from './src/screens/UserFormScreen';
+import { OrganizationScreen } from './src/screens/OrganizationScreen';
 
 const Stack = createStackNavigator();
 
 function App() {
   useEffect(() => {
-    SplashScreen.hide();
+    async function hideSplash() {
+      await SplashScreen.hideAsync();
+    }
+    hideSplash();
   }, []);
+
 
   return (
     <SafeAreaProvider>
@@ -39,6 +49,10 @@ function App() {
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+          <Stack.Screen name="UsersList" component={UsersListScreen} />
+          <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
+          <Stack.Screen name="UserForm" component={UserFormScreen} />
+          <Stack.Screen name="Organization" component={OrganizationScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
