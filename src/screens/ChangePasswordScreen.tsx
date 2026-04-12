@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
+import { apiClient } from '../api/client';
+
 
 export const ChangePasswordScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -31,7 +33,7 @@ export const ChangePasswordScreen: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       Alert.alert(t('security.title'), t('security.errorRequired'));
       return;
@@ -43,16 +45,38 @@ export const ChangePasswordScreen: React.FC = () => {
     }
 
     setLoading(true);
-    // Simulate API Update
-    setTimeout(() => {
+    
+    try {
+      // Call the change password API directly - it will validate current password internally
+      await apiClient('/auth/change-password', {
+        method: 'POST',
+        body: {
+          current_password: currentPassword,
+          new_password: newPassword,
+          new_password_confirmation: confirmPassword,
+        },
+      });
+      
       setLoading(false);
       Alert.alert(
         t('security.title'),
         t('security.success'),
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
-    }, 1500);
+    } catch (error: any) {
+      setLoading(false);
+      
+      // Provide specific error messages based on API response
+      let errorMessage = error.message || t('security.errorUpdate');
+      
+      if (error.status === 400 || error.status === 401) {
+        errorMessage = 'Current password is incorrect. Please try again.';
+      }
+      
+      Alert.alert(t('security.title'), errorMessage);
+    }
   };
+
 
   const PasswordInput = ({ 
     label, 

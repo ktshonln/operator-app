@@ -17,27 +17,63 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
+import { apiClient } from '../api/client';
+import { Alert } from 'react-native';
+
 
 const LOGO = require('../assets/images/new.png');
 
 export const ForgotPasswordScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { t } = useTranslation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleResetPassword = () => {
-    if (!email) return;
+  const handleResetPassword = async () => {
+    if (!identifier) {
+      Alert.alert(t('common.error'), t('login.pleaseEnterIdentifier'));
+      return;
+    }
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await apiClient('/auth/forgot-password', {
+        method: 'POST',
+        body: { identifier },
+      });
+      
       setLoading(false);
+      
+      // Handle successful response - the API client now handles empty/invalid JSON gracefully
       setIsSuccess(true);
-    }, 1500);
+      
+    } catch (error: any) {
+      setLoading(false);
+      console.log('Forgot password error:', error);
+      
+      // Don't navigate on error - show error message instead
+      let errorMessage = 'Failed to send reset link. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Special handling for network or server issues
+      if (error.status === 0) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.status === 404) {
+        errorMessage = 'User not found. Please check your phone number or email.';
+      }
+      
+      Alert.alert(t('common.error'), errorMessage);
+    }
   };
+
+
 
   useEffect(() => {
     if (isSuccess) {
@@ -85,14 +121,14 @@ export const ForgotPasswordScreen: React.FC = () => {
                 </Typography>
                 <View style={styles.inputContainer}>
                   <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                    {t('forgotPassword.email')}
+                    {t('forgotPassword.identifier')}
                   </Typography>
                   <TextInput
                     style={styles.input}
-                    placeholder={t('forgotPassword.emailPlaceholder')}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
+                    placeholder={t('forgotPassword.identifierPlaceholder')}
+                    value={identifier}
+                    onChangeText={setIdentifier}
+                    keyboardType="default"
                     autoCapitalize="none"
                   />
                 </View>
