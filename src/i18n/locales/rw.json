@@ -1,30 +1,41 @@
 {
+  "common": {
+    "error": "Ikibazo",
+    "ok": "Yego",
+    "success": "Byagenze neza"
+  },
   "login": {
     "welcome": "Murakaza neza kuri Katisha",
-    "email": "Imeyili",
-    "emailPlaceholder": "operator@gmail.com",
+    "identifier": "Imeyili cyangwa Terefone",
+    "identifierPlaceholder": "rugero 078... cyangwa operator@gmail.com",
     "password": "Ijambo banga",
     "forgotPassword": "Wibagiwe ijambo banga?",
     "signIn": "Injira",
-    "loginSuccess": "Kwinjira byagenze neza"
+    "loginSuccess": "Kwinjira byagenze neza",
+    "pleaseFillAllFields": "Uzuza ibyangombwa byose",
+    "loginFailed": "Kwinjira ntibyagenze neza",
+    "pleaseEnterIdentifier": "Injiza imeyili cyangwa terefone yawe",
+    "subtitle": "Injira kugira ngo ucunge ama-fleet n'ibikorwa byawe mu mutekano"
   },
   "forgotPassword": {
     "backToLogin": "← Subira kwinjira",
     "title": "Gusubiranya ijambo banga",
-    "description": "Andika imeyili yawe kugira ngo ubone uhuza wo gusubiranya ijambo banga.",
-    "email": "Imeyili",
-    "emailPlaceholder": "operator@gmail.com",
+    "description": "Andika imeyili cyangwa terefone yawe kugira ngo ubone uhuza wo gusubiranya ijambo banga.",
+    "identifier": "Imeyili cyangwa Terefone",
+    "identifierPlaceholder": "rugero 078... cyangwa operator@gmail.com",
     "sendLink": "Ohereza uhuza",
     "successMessage": "Uhuza wo gusubiranya ijambo banga woherejwe kuri imeyili yawe. Reba imbwirwarugero yawe ukurikire amabwiriza.",
-    "redirecting": "Ugiye ugezwa kuri OTP mu masegonda 3..."
+    "redirecting": "Ugiye ugezwa kuri OTP mu masegonda 3...",
+    "failed": "Kwohereza uhuza ntibyagenze neza"
   },
   "otp": {
     "back": "← Subira",
     "title": "Kwemeza ubunyakuri",
-    "description": "Injiza kode y'imibare 6 yoherejwe kuri imeyili yawe.",
+    "description": "Injiza kode y'imibare 6 yoherejwe kuri imeyili cyangwa terefone yawe.",
     "verify": "Emeza kode",
     "noCode": "Ntabwo wakiriye kode?",
-    "resend": "Ohereza nanone"
+    "resend": "Ohereza nanone",
+    "invalidCode": "Kode ntabwo ariyo"
   },
   "resetPassword": {
     "title": "Ijambo banga rishya",
@@ -33,7 +44,8 @@
     "confirmPassword": "Emeza ijambo banga rishya",
     "reset": "Subiranya ijambo banga",
     "successTitle": "Ijambo banga ryasubiranywe!",
-    "successMessage": "Ijambo banga ryawe ryahinduwe neza. Ugiye ugezwa ku kwinjira..."
+    "successMessage": "Ijambo banga ryawe ryahinduwe neza. Ugiye ugezwa ku kwinjira...",
+    "failed": "Guhindura ijambo banga ntibyagenze neza"
   },
   "settings": {
     "title": "Umwirondoro w'Operateri",
@@ -82,7 +94,8 @@
     "phoneNumber": "Nimero ya terefone",
     "save": "Bika impinduka",
     "updateSuccess": "Umwirondoro wavuguruwe neza",
-    "errorUpdate": "Habayemo ikibazo mu kuvugurura"
+    "errorUpdate": "Guvugurura umwirondoro ntibyagenze neza",
+    "errorFetch": "Gufata umwirondoro ntibyagenze neza"
   },
   "security": {
     "title": "Guhindura ijambo ry'ibanga",
@@ -92,7 +105,8 @@
     "save": "Hindura ijambo ry'ibanga",
     "success": "Ijambo ry'ibanga ryahinduwe neza",
     "errorMismatch": "Amagambo y'ibanga ntabwo ahura",
-    "errorRequired": "Amashakiro yose ni ngombwa"
+    "errorRequired": "Amashakiro yose ni ngombwa",
+    "errorUpdate": "Guhindura ijambo banga ntibyagenze neza"
   },
   "notifications": {
     "title": "Inyuburo (Alerts)",

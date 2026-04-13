@@ -1,30 +1,41 @@
 {
+  "common": {
+    "error": "Error",
+    "ok": "OK",
+    "success": "Success"
+  },
   "login": {
     "welcome": "Welcome to Katisha",
-    "email": "Email",
-    "emailPlaceholder": "operator@gmail.com",
+    "identifier": "Email or Phone Number",
+    "identifierPlaceholder": "e.g., 078... or operator@gmail.com",
     "password": "Password",
     "forgotPassword": "Forgot Password?",
     "signIn": "Sign in",
-    "loginSuccess": "Login Successful"
+    "loginSuccess": "Login Successful",
+    "pleaseFillAllFields": "Please fill in all fields",
+    "loginFailed": "Login failed",
+    "pleaseEnterIdentifier": "Please enter your email or phone number",
+    "subtitle": "Sign in to manage your fleet and operations securely"
   },
   "forgotPassword": {
     "backToLogin": "← Back to Login",
     "title": "Reset Password",
-    "description": "Enter your email for a password reset link.",
-    "email": "Email",
-    "emailPlaceholder": "operator@gmail.com",
+    "description": "Enter your email or phone number for a password reset link.",
+    "identifier": "Email or Phone Number",
+    "identifierPlaceholder": "e.g., 078... or operator@gmail.com",
     "sendLink": "Send Reset Link",
     "successMessage": "A reset link has been sent to your email. Please check your inbox and follow the instructions.",
-    "redirecting": "Navigating to OTP verification in 3 seconds..."
+    "redirecting": "Navigating to OTP verification in 3 seconds...",
+    "failed": "Failed to send reset link"
   },
   "otp": {
     "back": "← Back",
     "title": "Verification",
-    "description": "Enter the 6-digit code sent to your email.",
+    "description": "Enter the 6-digit code sent to your email or phone.",
     "verify": "Verify Code",
     "noCode": "Didn't receive code?",
-    "resend": "Resend"
+    "resend": "Resend",
+    "invalidCode": "Invalid verification code"
   },
   "resetPassword": {
     "title": "New Password",
@@ -33,7 +44,8 @@
     "confirmPassword": "Confirm New Password",
     "reset": "Reset Password",
     "successTitle": "Password Reset!",
-    "successMessage": "Your password has been successfully updated. Redirecting to login..."
+    "successMessage": "Your password has been successfully updated. Redirecting to login...",
+    "failed": "Failed to reset password"
   },
   "settings": {
     "title": "Operator Profile",
@@ -82,7 +94,8 @@
     "phoneNumber": "Phone Number",
     "save": "Save Changes",
     "updateSuccess": "Profile updated successfully",
-    "errorUpdate": "Error updating profile"
+    "errorUpdate": "Error updating profile",
+    "errorFetch": "Error fetching profile"
   },
   "security": {
     "title": "Change Password",
@@ -92,7 +105,8 @@
     "save": "Update Password",
     "success": "Password changed successfully",
     "errorMismatch": "Passwords do not match",
-    "errorRequired": "All fields are required"
+    "errorRequired": "All fields are required",
+    "errorUpdate": "Failed to update password"
   },
   "notifications": {
     "title": "Alerts & Notifications",

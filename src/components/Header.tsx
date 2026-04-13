@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform }
 import { useTranslation } from 'react-i18next';
 import { Typography } from './Typography';
 import { COLORS } from '../theme/colors';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Icon, IconName } from './Icon';
 import { useNavigation } from '@react-navigation/native';
 
 interface HeaderProps {
@@ -11,10 +11,12 @@ interface HeaderProps {
   showBack?: boolean;
   onBack?: () => void;
   rightElement?: React.ReactNode;
+  rightIcon?: IconName;
+  onRightPress?: () => void;
   onSearch?: (query: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightElement, onSearch }) => {
+export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightElement, rightIcon, onRightPress, onSearch }) => {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
@@ -40,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
           {isSearching ? (
             <View style={styles.searchContainer}>
               <TouchableOpacity onPress={toggleSearch} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={22} color={COLORS.brand} />
+                <Icon name="arrow-left" size={22} color={COLORS.brand} />
               </TouchableOpacity>
               <TextInput
                 autoFocus
@@ -52,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
               />
               {query.length > 0 && (
                 <TouchableOpacity onPress={() => handleSearch('')}>
-                  <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+                  <Icon name="close-circle" size={18} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -61,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
               <View style={styles.left}>
                 {showBack && (
                   <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Ionicons name="chevron-back" size={24} color={COLORS.brand} />
+                    <Icon name="chevron-left" size={24} color={COLORS.brand} />
                   </TouchableOpacity>
                 )}
                 <View>
@@ -73,17 +75,21 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
               </View>
               
               <View style={styles.right}>
-                {rightElement || (
+                {rightIcon ? (
+                  <TouchableOpacity style={styles.iconButton} onPress={onRightPress}>
+                    <Icon name={rightIcon} size={24} color={COLORS.brand} />
+                  </TouchableOpacity>
+                ) : rightElement || (
                   <View style={styles.actionIcons}>
                     <TouchableOpacity style={styles.iconButton} onPress={toggleSearch}>
-                      <Ionicons name="search-outline" size={22} color={COLORS.textSecondary} />
+                      <Icon name="search" size={22} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.iconButton} 
                       onPress={() => navigation.navigate('Notifications')}
                     >
                       <View>
-                        <Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} />
+                        <Icon name="notifications" size={22} color={COLORS.textSecondary} />
                         <View style={styles.badge} />
                       </View>
                     </TouchableOpacity>
@@ -92,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
                       onPress={() => navigation.navigate('Settings')}
                     >
                       <View style={styles.avatarCircle}>
-                        <Ionicons name="settings-outline" size={18} color={COLORS.white} />
+                        <Icon name="settings" size={18} color={COLORS.white} />
                       </View>
                     </TouchableOpacity>
                   </View>

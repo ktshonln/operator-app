@@ -1,5 +1,5 @@
-// v2 - Corrected JSX tags
-import React, { useState } from 'react';
+// v3 - Redesigned for cleaner and friendlier interface
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -12,41 +12,116 @@ import {
   Platform,
   ScrollView,
   Animated,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Icon } from '../components/Icon';
+import { apiClient } from '../api/client';
+import { authStore } from '../api/authStore';
+import { Alert } from 'react-native';
 
+const { width } = Dimensions.get('window');
 const LOGO = require('../assets/images/new.png');
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { t, i18n } = useTranslation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  
   const [showToast, setShowToast] = useState(false);
   const toastOpacity = React.useRef(new Animated.Value(0)).current;
   const toastTranslateY = React.useRef(new Animated.Value(20)).current;
 
-  const handleSignIn = () => {
+  // Animation values for entry
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 20,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const LanguageButton = ({ lang }: { lang: { code: string, label: string } }) => {
+    const isActive = i18n.language === lang.code;
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.langBtn,
+          isActive && styles.langBtnActive
+        ]}
+        onPress={() => i18n.changeLanguage(lang.code)}
+      >
+        <Typography 
+          variant="caption" 
+          weight="bold"
+          style={[
+            styles.langBtnText, 
+            isActive && styles.langBtnTextActive
+          ]}
+        >
+          {lang.label}
+        </Typography>
+      </TouchableOpacity>
+    );
+  };
+
+  const handleSignIn = async () => {
+    if (!identifier || !password) {
+      Alert.alert(t('common.error'), t('login.pleaseFillAllFields'));
+      return;
+    }
+
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await apiClient('/auth/login', {
+        method: 'POST',
+        headers: {
+          'X-Client-Type': 'mobile',
+        },
+        body: {
+          identifier: identifier,
+          password: password,
+          device_name: `${Platform.OS}_${Platform.Version || 'device'}`,
+        },
+      });
+
+      if (response.access_token) {
+        await authStore.saveToken(response.access_token);
+      }
+      if (response.refresh_token) {
+        await authStore.saveRefreshToken(response.refresh_token);
+      }
+      if (response.user) {
+        await authStore.saveUser(response.user);
+      }
+
       setLoading(false);
       setShowToast(true);
       
-      // Reset animation values
       toastOpacity.setValue(0);
       toastTranslateY.setValue(20);
       
-      // Animate Toast In
       Animated.parallel([
         Animated.timing(toastOpacity, {
           toValue: 1,
@@ -60,7 +135,6 @@ export const LoginScreen: React.FC = () => {
           useNativeDriver: true,
         }),
       ]).start(() => {
-        // Wait and then Fade Out
         setTimeout(() => {
           Animated.timing(toastOpacity, {
             toValue: 0,
@@ -72,113 +146,155 @@ export const LoginScreen: React.FC = () => {
           });
         }, 1200);
       });
-    }, 1500);
+    } catch (error: any) {
+      setLoading(false);
+      let errorMessage = t('login.loginFailed');
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.data?.error?.message) {
+        errorMessage = error.data.error.message;
+      }
+      
+      Alert.alert(t('common.error'), errorMessage);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      
+      {/* Dynamic Background */}
+      <View style={styles.bgContainer}>
+        <View style={styles.circle1} />
+        <View style={styles.circle2} />
+        <View style={styles.circle3} />
+      </View>
+
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.languageSwitcherTop}>
-            {[
-              { code: 'rw', label: 'RW' },
-              { code: 'en', label: 'EN' },
-              { code: 'fr', label: 'FR' },
-            ].map((lang) => (
-              <TouchableOpacity 
-                key={lang.code}
-                style={[
-                  styles.langBtn,
-                  i18n.language === lang.code && styles.langBtnActive
-                ]}
-                onPress={() => i18n.changeLanguage(lang.code)}
-              >
-                {i18n.language === lang.code && (
-                  <Ionicons name="checkmark-circle" size={14} color={COLORS.brand} style={{ marginRight: 4 }} />
-                )}
-                <Typography variant="caption" style={{ fontWeight: 'bold', color: i18n.language === lang.code ? COLORS.brand : COLORS.textSecondary }}>
-                  {lang.label}
-                </Typography>
-              </TouchableOpacity>
-            ))}
-          </View>
-
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.content}>
-            <View style={styles.logoTopContainer}>
-              <Image 
-                source={LOGO} 
-                style={styles.logoTop} 
-                resizeMode="contain"
-              />
-            </View>
-            
-            <Typography variant="h2" color={COLORS.text} align="center" style={styles.welcomeTitle}>
-              {t('login.welcome')}
-            </Typography>
-            
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                  {t('login.email')}
+            <Animated.View style={[
+              styles.header,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            ]}>
+              <View style={styles.branding}>
+                <View style={styles.logoCircle}>
+                  <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+                </View>
+                <View style={styles.languageContainer}>
+                  <LanguageButton lang={{ code: 'rw', label: 'RW' }} />
+                  <LanguageButton lang={{ code: 'en', label: 'EN' }} />
+                  <LanguageButton lang={{ code: 'fr', label: 'FR' }} />
+                </View>
+              </View>
+              
+              <View style={styles.titleContainer}>
+                <Typography variant="h1" weight="extraBold" style={styles.title}>
+                  {t('login.welcome')}
                 </Typography>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('login.emailPlaceholder')}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+                <Typography variant="body" color={COLORS.textSecondary} style={styles.subtitle}>
+                  {t('login.subtitle')}
+                </Typography>
+              </View>
+            </Animated.View>
+            
+            <Animated.View style={[
+              styles.formContainer,
+              { 
+                opacity: fadeAnim, 
+                transform: [{ translateY: slideAnim }] 
+              }
+            ]}>
+              <View style={styles.inputGroup}>
+                <Typography variant="caption" weight="bold" color={COLORS.textSecondary} style={styles.label}>
+                  {t('login.identifier')}
+                </Typography>
+                <View style={[
+                  styles.inputContainer,
+                  focusedField === 'identifier' && styles.inputFocused
+                ]}>
+                  <Icon name="person" size={20} color={focusedField === 'identifier' ? COLORS.brand : COLORS.textMuted} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t('login.identifierPlaceholder')}
+                    placeholderTextColor={COLORS.textMuted}
+                    value={identifier}
+                    onChangeText={setIdentifier}
+                    onFocus={() => setFocusedField('identifier')}
+                    onBlur={() => setFocusedField(null)}
+                    autoCapitalize="none"
+                  />
+                </View>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
+              <View style={styles.inputGroup}>
+                <Typography variant="caption" weight="bold" color={COLORS.textSecondary} style={styles.label}>
                   {t('login.password')}
                 </Typography>
-                <View style={styles.inputRow}>
+                <View style={[
+                  styles.inputContainer,
+                  focusedField === 'password' && styles.inputFocused
+                ]}>
+                  <Icon name="lock" size={20} color={focusedField === 'password' ? COLORS.brand : COLORS.textMuted} />
                   <TextInput
-                    style={styles.inputFlex}
+                    style={styles.input}
                     placeholder="••••••••"
+                    placeholderTextColor={COLORS.textMuted}
                     value={password}
                     onChangeText={setPassword}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
                     secureTextEntry={!showPassword}
                   />
-                  <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
-                    <Ionicons 
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Icon 
+                      name={showPassword ? 'eye-off' : 'eye'} 
                       size={20} 
-                      color={COLORS.textSecondary} 
+                      color={COLORS.textMuted} 
                     />
                   </TouchableOpacity>
                 </View>
               </View>
 
               <TouchableOpacity 
-                style={styles.forgotPassword}
+                style={styles.forgotPass}
                 onPress={() => navigation.navigate('ForgotPassword')}
               >
-                <Typography variant="caption" color={COLORS.brand} align="right">
+                <Typography variant="caption" weight="bold" color={COLORS.brand}>
                   {t('login.forgotPassword')}
                 </Typography>
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.button, loading && { opacity: 0.7 }]}
+                style={[styles.loginBtn, loading && styles.btnDisabled]}
                 onPress={handleSignIn}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                    {t('login.signIn')}
-                  </Typography>
+                  <>
+                    <Typography weight="extraBold" color={COLORS.white} variant="h4">
+                      {t('login.signIn')}
+                    </Typography>
+                    <Icon name="arrow-right" size={20} color={COLORS.white} style={{ marginLeft: 12 }} />
+                  </>
                 )}
               </TouchableOpacity>
+            </Animated.View>
+
+            <View style={styles.footer}>
+              <Typography variant="caption" color={COLORS.textMuted} align="center">
+                © {new Date().getFullYear()} Katisha System. All rights reserved.
+              </Typography>
             </View>
           </View>
         </ScrollView>
@@ -192,10 +308,8 @@ export const LoginScreen: React.FC = () => {
             }
           ]}>
             <View style={styles.toastContent}>
-              <View style={styles.toastIcon}>
-                 <Ionicons name="checkmark" size={14} color={COLORS.white} />
-              </View>
-              <Typography color={COLORS.white} variant="body" style={{ fontWeight: '600', fontSize: 15 }}>
+               <Icon name="check-circle" size={20} color={COLORS.white} style={{ marginRight: 10 }} />
+              <Typography color={COLORS.white} weight="semibold">
                 {t('login.loginSuccess')}
               </Typography>
             </View>
@@ -209,150 +323,169 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
+  },
+  bgContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    zIndex: -1,
+  },
+  circle1: {
+    position: 'absolute',
+    top: -width * 0.2,
+    right: -width * 0.2,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: COLORS.brandLight,
+    opacity: 0.5,
+  },
+  circle2: {
+    position: 'absolute',
+    bottom: -width * 0.1,
+    left: -width * 0.3,
+    width: width * 0.7,
+    height: width * 0.7,
+    borderRadius: width * 0.35,
+    backgroundColor: COLORS.brandLight,
+    opacity: 0.3,
+  },
+  circle3: {
+    position: 'absolute',
+    top: width * 0.4,
+    left: width * 0.05,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.brandLight,
+    opacity: 0.4,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
   },
   content: {
-    paddingHorizontal: 30,
-    paddingTop: 10,
-    paddingBottom: 20,
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 24,
   },
-  logoTopContainer: {
+  header: {
+    marginBottom: 40,
+  },
+  branding: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20, 
+    marginBottom: 32,
   },
-  logoTop: {
-    width: 120,
-    height: 110,
+  logoCircle: {
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  welcomeTitle: {
-    fontSize: 26,
-    fontWeight: '600',
-    marginTop: 0,
+  logo: {
+    width: 80,
+    height: 80,
+  },
+  languageContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  langBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  langBtnActive: {
+    backgroundColor: COLORS.brand,
+    borderColor: COLORS.brand,
+  },
+  langBtnText: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+  },
+  langBtnTextActive: {
+    color: COLORS.white,
+  },
+  titleContainer: {
+    marginTop: 8,
+  },
+  title: {
+    marginBottom: 8,
+  },
+  subtitle: {
+    maxWidth: '90%',
+  },
+  formContainer: {
+    paddingTop: 12,
+  },
+  inputGroup: {
     marginBottom: 20,
   },
-  form: {
-    width: '100%',
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
   label: {
-    marginBottom: 6,
-    fontWeight: '600',
+    marginLeft: 4,
+    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    fontSize: 11,
   },
-  input: {
-    backgroundColor: '#F7FAFC',
-    height: 50,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  inputRow: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F7FAFC',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    height: 50,
-  },
-  inputFlex: {
-    flex: 1,
     paddingHorizontal: 16,
-    fontSize: 15,
+    height: 56,
+  },
+  inputFocused: {
+    borderColor: COLORS.brand,
+    backgroundColor: '#F7FAFC',
+  },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
     color: COLORS.text,
+    height: '100%',
   },
-  eyeButton: {
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eyeIcon: {
-    fontSize: 18,
-  },
-  forgotPassword: {
+  forgotPass: {
     alignSelf: 'flex-end',
-    marginBottom: 20,
+    marginBottom: 32,
   },
-  button: {
+  loginBtn: {
     backgroundColor: COLORS.brand,
-    height: 50,
-    borderRadius: 16,
-    alignItems: 'center',
+    height: 64,
+    borderRadius: 18,
+    flexDirection: 'row',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: COLORS.brand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    alignItems: 'center',
   },
-  buttonText: {
-    fontWeight: 'bold',
-    fontSize: 17,
-    letterSpacing: 0.5,
+  btnDisabled: {
+    opacity: 0.7,
   },
   footer: {
-    paddingVertical: 20,
+    marginTop: 'auto',
+    paddingVertical: 24,
   },
   toast: {
     position: 'absolute',
-    bottom: 60,
-    left: 20,
-    right: 20,
+    bottom: 50,
+    left: 24,
+    right: 24,
     alignItems: 'center',
     zIndex: 1000,
   },
   toastContent: {
-    backgroundColor: '#10B981',
+    backgroundColor: COLORS.text,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 30,
-    elevation: 8,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-  },
-  toastIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  languageSwitcherTop: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    marginTop: 10,
-    gap: 8,
-  },
-  langBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: '#F7FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  langBtnActive: {
-    backgroundColor: '#E6F0FF',
-    borderColor: COLORS.brand,
+    borderRadius: 20,
   },
 });

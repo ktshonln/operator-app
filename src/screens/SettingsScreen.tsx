@@ -5,7 +5,7 @@ import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
 import { useOrganization } from '../hooks/useOrganization';
 import { authStore } from '../api/authStore';
@@ -96,7 +96,7 @@ export const SettingsScreen: React.FC = () => {
   }) => (
     <TouchableOpacity style={styles.item} onPress={onPress}>
       <View style={styles.itemLeft}>
-        <Ionicons name={icon} size={20} color={COLORS.brand} style={styles.icon} />
+        <Icon name={icon} size={20} color={COLORS.brand} style={styles.icon} />
         <Typography variant="body" style={styles.titleText}>{title}</Typography>
       </View>
       <View style={styles.right}>
@@ -116,11 +116,11 @@ export const SettingsScreen: React.FC = () => {
         }}
       >
         <View style={styles.itemLeft}>
-          <Ionicons name="globe-outline" size={20} color={COLORS.brand} style={styles.icon} />
+          <Icon name="globe" size={20} color={COLORS.brand} style={styles.icon} />
           <Typography variant="body" style={styles.titleText}>{lang.label}</Typography>
         </View>
         {isActive && (
-          <Ionicons name="checkmark-circle" size={20} color={COLORS.brand} />
+          <Icon name="check-circle" size={20} color={COLORS.brand} />
         )}
       </TouchableOpacity>
     );
@@ -162,28 +162,38 @@ export const SettingsScreen: React.FC = () => {
         <Typography variant="caption" style={styles.sectionHeader}>{t('settings.sectionAccount')}</Typography>
         <SettingItem 
           title={t('settings.profile')} 
-          icon="person-outline" 
+          icon="person" 
           onPress={() => navigation.navigate('Profile')}
         />
         <SettingItem 
           title="Organization" 
-          icon="business-outline" 
+          icon="business" 
           onPress={() => navigation.navigate('Organization')}
         />
         <SettingItem 
           title="User Management" 
-          icon="people-outline" 
+          icon="users" 
           onPress={() => navigation.navigate('UsersList')}
         />
         <SettingItem 
+          title="Role Management" 
+          icon="shield" 
+          onPress={() => navigation.navigate('RoleManagement')}
+        />
+        <SettingItem 
           title={t('settings.security')} 
-          icon="lock-closed-outline" 
+          icon="lock" 
           onPress={() => navigation.navigate('ChangePassword')}
+        />
+        <SettingItem 
+          title="Device Verification" 
+          icon="shield" 
+          onPress={() => navigation.navigate('TwoFactor')}
         />
         <SettingItem 
           title={t('settings.alerts')} 
           value={notificationCount > 0 ? notificationCount.toString() : undefined} 
-          icon="notifications-outline" 
+          icon="notifications" 
           onPress={() => navigation.navigate('Notifications')}
         />
 

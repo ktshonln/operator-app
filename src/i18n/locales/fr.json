@@ -1,30 +1,41 @@
 {
+  "common": {
+    "error": "Erreur",
+    "ok": "OK",
+    "success": "Succès"
+  },
   "login": {
     "welcome": "Bienvenue sur Katisha",
-    "email": "E-mail",
-    "emailPlaceholder": "operator@gmail.com",
+    "identifier": "E-mail ou Téléphone",
+    "identifierPlaceholder": "ex: 078... ou operator@gmail.com",
     "password": "Mot de passe",
     "forgotPassword": "Mot de passe oublié ?",
     "signIn": "Se connecter",
-    "loginSuccess": "Connexion réussie"
+    "loginSuccess": "Connexion réussie",
+    "pleaseFillAllFields": "Veuillez remplir tous les champs",
+    "loginFailed": "Échec de la connexion",
+    "pleaseEnterIdentifier": "Veuillez entrer votre e-mail ou téléphone",
+    "subtitle": "Connectez-vous pour gérer votre flotte et vos opérations en toute sécurité"
   },
   "forgotPassword": {
     "backToLogin": "← Retour à la connexion",
     "title": "Réinitialiser le mot de passe",
-    "description": "Entrez votre e-mail pour recevoir un lien de réinitialisation.",
-    "email": "E-mail",
-    "emailPlaceholder": "operator@gmail.com",
+    "description": "Entrez votre e-mail ou votre numéro de téléphone pour recevoir un lien de réinitialisation.",
+    "identifier": "E-mail ou Téléphone",
+    "identifierPlaceholder": "ex: 078... ou operator@gmail.com",
     "sendLink": "Envoyer le lien",
     "successMessage": "Un lien de réinitialisation a été envoyé à votre adresse e-mail. Veuillez vérifier votre boîte de réception.",
-    "redirecting": "Redirection vers la vérification OTP dans 3 secondes..."
+    "redirecting": "Redirection vers la vérification OTP dans 3 secondes...",
+    "failed": "Échec de l'envoi du lien"
   },
   "otp": {
     "back": "← Retour",
     "title": "Vérification",
-    "description": "Entrez le code à 6 chiffres envoyé à votre e-mail.",
+    "description": "Entrez le code à 6 chiffres envoyé à votre e-mail ou téléphone.",
     "verify": "Vérifier le code",
     "noCode": "Vous n'avez pas reçu le code ?",
-    "resend": "Renvoyer"
+    "resend": "Renvoyer",
+    "invalidCode": "Code de vérification invalide"
   },
   "resetPassword": {
     "title": "Nouveau mot de passe",
@@ -33,7 +44,8 @@
     "confirmPassword": "Confirmer le nouveau mot de passe",
     "reset": "Réinitialiser le mot de passe",
     "successTitle": "Mot de passe réinitialisé !",
-    "successMessage": "Votre mot de passe a été mis à jour avec succès. Redirection vers la connexion..."
+    "successMessage": "Votre mot de passe a été mis à jour avec succès. Redirection vers la connexion...",
+    "failed": "Échec de la réinitialisation"
   },
   "settings": {
     "title": "Profil de l'opérateur",
@@ -70,13 +82,16 @@
     "usage": "Utilisation"
   },
   "notifications": {
-    "title": "Notifications",
+    "title": "Alertes et Notifications",
     "newBooking": "Nouvelle réservation",
-    "newBookingMsg": "Ticket #4582 réservé pour Kgl - Msz",
-    "vehicleAlert": "Alerte véhicule",
-    "vehicleAlertMsg": "RAC 456 B est arrivé à Musanze",
-    "paymentConfirmed": "Paiement confirmé",
-    "paymentConfirmedMsg": "RWF 15 000 reçu pour l'agent #12"
+    "newBookingMsg": "Un passager vient de réserver un billet pour le prochain voyage.",
+    "vehicleAlert": "Alerte Véhicule",
+    "vehicleAlertMsg": "Le bus n° RA 123 B nécessite du carburant ou une révision.",
+    "paymentConfirmed": "Paiement Confirmé",
+    "paymentConfirmedMsg": "Le paiement par Mobile Money a été confirmé.",
+    "systemUpdate": "Mise à jour du système",
+    "systemUpdateMsg": "L'application Katisha a été mise à jour pour de meilleures performances.",
+    "empty": "Vous n'avez pas de nouvelles notifications pour le moment."
   },
   "header": {
     "searchPlaceholder": "Rechercher..."
@@ -91,7 +106,8 @@
     "phoneNumber": "Numéro de téléphone",
     "save": "Enregistrer les modifications",
     "updateSuccess": "Profil mis à jour avec succès",
-    "errorUpdate": "Erreur lors de la mise à jour"
+    "errorUpdate": "Erreur lors de la mise à jour du profil",
+    "errorFetch": "Erreur lors de la récupération du profil"
   },
   "security": {
     "title": "Changer le mot de passe",
@@ -101,18 +117,8 @@
     "save": "Mettre à jour le mot de passe",
     "success": "Mot de passe changé avec succès",
     "errorMismatch": "Les mots de passe ne correspondent pas",
-    "errorRequired": "Tous les champs sont obligatoires"
-  },
-  "notifications": {
-    "title": "Alertes et Notifications",
-    "newBooking": "Nouvelle réservation",
-    "newBookingMsg": "Un passager vient de réserver un billet pour le prochain voyage.",
-    "vehicleAlert": "Alerte Véhicule",
-    "vehicleAlertMsg": "Le bus n° RA 123 B nécessite du carburant ou une révision.",
-    "paymentConfirmed": "Paiement Confirmé",
-    "paymentConfirmedMsg": "Le paiement par Mobile Money a été confirmé.",
-    "systemUpdate": "Mise à jour du système",
-    "systemUpdateMsg": "L'application Katisha a été mise à jour pour de meilleures performances.",
-    "empty": "Vous n'avez pas de nouvelles notifications pour le moment."
+    "errorRequired": "Tous les champs sont obligatoires",
+    "errorUpdate": "Échec de la mise à jour"
   }
+
 }

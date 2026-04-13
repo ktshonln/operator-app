@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '../components/Icon';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
@@ -104,8 +104,8 @@ export const ChangePasswordScreen: React.FC = () => {
           secureTextEntry={!show}
         />
         <TouchableOpacity style={styles.eyeButton} onPress={onToggle}>
-          <Ionicons 
-            name={show ? 'eye-off-outline' : 'eye-outline'} 
+          <Icon 
+            name={show ? 'eye-off' : 'eye'} 
             size={20} 
             color={COLORS.textSecondary} 
           />

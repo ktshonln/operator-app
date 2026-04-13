@@ -1,4 +1,31 @@
 {
-  "name": "KatishaOperator",
-  "displayName": "KatishaOperator"
+  "expo": {
+    "name": "KatishaOperator",
+    "slug": "katisha-operator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/images/new.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./src/assets/images/new.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/images/new.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "online.katisha.operator"
+    },
+    "web": {
+      "favicon": "./src/assets/images/new.png"
+    }
+  }
 }

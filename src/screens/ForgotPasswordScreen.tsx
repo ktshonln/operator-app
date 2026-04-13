@@ -1,3 +1,4 @@
+// v3 - Redesigned for cleaner and friendlier interface
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -10,18 +11,20 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ScrollView,
-  ActivityIndicator
+  Animated,
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
 import { Alert } from 'react-native';
 
-
+const { width } = Dimensions.get('window');
 const LOGO = require('../assets/images/new.png');
 
 export const ForgotPasswordScreen: React.FC = () => {
@@ -30,6 +33,27 @@ export const ForgotPasswordScreen: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Animation values for entry
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 20,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleResetPassword = async () => {
     if (!identifier) {
@@ -39,41 +63,20 @@ export const ForgotPasswordScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await apiClient('/auth/forgot-password', {
+      await apiClient('/auth/forgot-password', {
         method: 'POST',
         body: { identifier },
       });
       
       setLoading(false);
-      
-      // Handle successful response - the API client now handles empty/invalid JSON gracefully
       setIsSuccess(true);
-      
     } catch (error: any) {
       setLoading(false);
-      console.log('Forgot password error:', error);
-      
-      // Don't navigate on error - show error message instead
       let errorMessage = 'Failed to send reset link. Please try again.';
-      
-      if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      // Special handling for network or server issues
-      if (error.status === 0) {
-        errorMessage = 'Network error. Please check your connection and try again.';
-      } else if (error.status >= 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (error.status === 404) {
-        errorMessage = 'User not found. Please check your phone number or email.';
-      }
-      
+      if (error.message) errorMessage = error.message;
       Alert.alert(t('common.error'), errorMessage);
     }
   };
-
-
 
   useEffect(() => {
     if (isSuccess) {
@@ -86,84 +89,121 @@ export const ForgotPasswordScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      
+      {/* Dynamic Background */}
+      <View style={styles.bgContainer}>
+        <View style={styles.circle1} />
+        <View style={styles.circle2} />
+      </View>
+
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.content}>
-            {!isSuccess ? (
-              <View style={styles.form}>
-                <View style={styles.header}>
-                  <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
+            <Animated.View style={[
+              styles.header,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            ]}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Icon name="arrow-left" size={24} color={COLORS.brand} />
+                <Typography variant="body" weight="bold" color={COLORS.brand} style={styles.backText}>
+                  {t('forgotPassword.backToLogin')}
+                </Typography>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View style={[
+              styles.mainContent,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            ]}>
+              {!isSuccess ? (
+                <>
+                  <View style={styles.headerTextContainer}>
+                    <View style={styles.logoCircle}>
+                      <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+                    </View>
+                    <Typography variant="h1" weight="extraBold" style={styles.title}>
+                      {t('forgotPassword.title')}
+                    </Typography>
+                    <Typography variant="body" color={COLORS.textSecondary} style={styles.subtitle}>
+                      {t('forgotPassword.description')}
+                    </Typography>
+                  </View>
+                  
+                  <View style={styles.formContainer}>
+                    <View style={styles.inputGroup}>
+                      <Typography variant="caption" weight="bold" color={COLORS.textSecondary} style={styles.label}>
+                        {t('forgotPassword.identifier')}
+                      </Typography>
+                      <View style={[
+                        styles.inputContainer,
+                        focusedField === 'identifier' && styles.inputFocused
+                      ]}>
+                        <Icon name="mail" size={20} color={focusedField === 'identifier' ? COLORS.brand : COLORS.textMuted} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('forgotPassword.identifierPlaceholder')}
+                          placeholderTextColor={COLORS.textMuted}
+                          value={identifier}
+                          onChangeText={setIdentifier}
+                          onFocus={() => setFocusedField('identifier')}
+                          onBlur={() => setFocusedField(null)}
+                          keyboardType="default"
+                          autoCapitalize="none"
+                        />
+                      </View>
+                    </View>
+
+                    <TouchableOpacity 
+                      style={[styles.resetBtn, loading && styles.btnDisabled]}
+                      onPress={handleResetPassword}
+                      disabled={loading}
                     >
-                    <Typography variant="body" color={COLORS.brand}>
-                      {t('forgotPassword.backToLogin')}
-                    </Typography>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.logoBottomContainer}>
-                  <Image 
-                    source={LOGO} 
-                    style={styles.logo} 
-                    resizeMode="contain"
-                  />
-                </View>
-                <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-                  {t('forgotPassword.title')}
-                </Typography>
-                
-                <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-                  {t('forgotPassword.description')}
-                </Typography>
-                <View style={styles.inputContainer}>
-                  <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                    {t('forgotPassword.identifier')}
+                      {loading ? (
+                        <ActivityIndicator color={COLORS.white} />
+                      ) : (
+                        <>
+                          <Typography weight="extraBold" color={COLORS.white} variant="h4">
+                            {t('forgotPassword.sendLink')}
+                          </Typography>
+                          <Icon name="send" size={20} color={COLORS.white} style={{ marginLeft: 12 }} />
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.successContainer}>
+                  <View style={styles.successIconOuter}>
+                     <View style={styles.successIconInner}>
+                        <Icon name="check" size={56} color={COLORS.success} />
+                     </View>
+                  </View>
+                  <Typography variant="h2" weight="extraBold" style={styles.successTitle}>
+                    Check Your Inbox
                   </Typography>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('forgotPassword.identifierPlaceholder')}
-                    value={identifier}
-                    onChangeText={setIdentifier}
-                    keyboardType="default"
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                <TouchableOpacity 
-                  style={[styles.button, loading && { opacity: 0.7 }]}
-                  onPress={handleResetPassword}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={COLORS.white} />
-                  ) : (
-                    <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                      {t('forgotPassword.sendLink')}
+                  <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.successSubtitle}>
+                    {t('forgotPassword.successMessage')}
+                  </Typography>
+                  <View style={styles.redirectBadge}>
+                    <ActivityIndicator color={COLORS.brand} size="small" />
+                    <Typography variant="caption" weight="bold" color={COLORS.textSecondary} style={{ marginLeft: 10 }}>
+                      {t('forgotPassword.redirecting')}
                     </Typography>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.successContainer}>
-                <View style={styles.successIcon}>
-                  <Ionicons name="checkmark" size={40} color={COLORS.white} />
+                  </View>
                 </View>
-                <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.successText}>
-                  {t('forgotPassword.successMessage')}
-                </Typography>
-                <View style={{ height: 40, justifyContent: 'center' }}>
-                  <ActivityIndicator color={COLORS.brand} size="small" />
-                </View>
-                <Typography variant="caption" color={COLORS.textSecondary} align="center" style={{ marginTop: 10 }}>
-                  {t('forgotPassword.redirecting')}
-                </Typography>
-              </View>
-            )}
-
+              )}
+            </Animated.View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -174,99 +214,170 @@ export const ForgotPasswordScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
+  },
+  bgContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    zIndex: -1,
+  },
+  circle1: {
+    position: 'absolute',
+    top: -width * 0.1,
+    left: -width * 0.2,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: COLORS.brandLight,
+    opacity: 0.4,
+  },
+  circle2: {
+    position: 'absolute',
+    bottom: width * 0.1,
+    right: -width * 0.2,
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: width * 0.3,
+    backgroundColor: COLORS.brandLight,
+    opacity: 0.3,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
   },
   content: {
-    paddingHorizontal: 30,
-    paddingTop: 10,
-    paddingBottom: 20,
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 32,
   },
   backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
     paddingVertical: 10,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  description: {
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  form: {
-    width: '100%',
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    marginBottom: 6,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontSize: 11,
-  },
-  input: {
-    backgroundColor: '#F7FAFC',
-    height: 50,
-    borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 15,
-    color: COLORS.text,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: COLORS.border,
   },
-  button: {
-    backgroundColor: COLORS.brand,
-    height: 50,
-    borderRadius: 16,
+  backText: {
+    marginLeft: 8,
+  },
+  mainContent: {
+    flex: 1,
+  },
+  headerTextContainer: {
+    marginBottom: 40,
     alignItems: 'center',
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: COLORS.brand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  buttonText: {
-    fontWeight: 'bold',
-    fontSize: 17,
-    letterSpacing: 0.5,
-  },
-  logoBottomContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   logo: {
-    width: 120,
-    height: 110,
+    width: 80,
+    height: 80,
   },
-  footer: {
-    paddingVertical: 20,
+  title: {
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    maxWidth: '85%',
+  },
+  formContainer: {
+    paddingTop: 12,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    marginLeft: 4,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputFocused: {
+    borderColor: COLORS.brand,
+    backgroundColor: '#F7FAFC',
+  },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: COLORS.text,
+    height: '100%',
+  },
+  resetBtn: {
+    backgroundColor: COLORS.brand,
+    height: 64,
+    borderRadius: 18,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnDisabled: {
+    opacity: 0.7,
   },
   successContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 32,
+    padding: 32,
     alignItems: 'center',
-    paddingVertical: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.white,
+    marginTop: 20,
   },
-  successIcon: {
+  successIconOuter: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: COLORS.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  successIconInner: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#38A169',
-    justifyContent: 'center',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  successText: {
-    marginBottom: 30,
+  successTitle: {
+    marginBottom: 12,
+  },
+  successSubtitle: {
+    marginBottom: 32,
     lineHeight: 22,
+  },
+  redirectBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
   },
 });

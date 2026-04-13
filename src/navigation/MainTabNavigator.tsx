@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Icon } from '../components/Icon';
 import { useTranslation } from 'react-i18next';
 
 import { TicketingScreen } from '../screens/TicketingScreen';
@@ -15,16 +15,16 @@ const Tab = createBottomTabNavigator();
 const TabIcon = ({ name, focused, color }: { name: string, focused: boolean, color: string }) => {
   let iconName = '';
   switch (name) {
-    case 'Ticketing': iconName = focused ? 'card' : 'card-outline'; break;
-    case 'Fleets': iconName = focused ? 'bus' : 'bus-outline'; break;
-    case 'Trips': iconName = focused ? 'map' : 'map-outline'; break;
-    case 'Reports': iconName = focused ? 'bar-chart' : 'bar-chart-outline'; break;
-    case 'Settings': iconName = focused ? 'settings' : 'settings-outline'; break;
+    case 'Ticketing': iconName = 'card'; break;
+    case 'Fleets': iconName = 'bus'; break;
+    case 'Trips': iconName = 'map'; break;
+    case 'Reports': iconName = 'chart'; break;
+    case 'Settings': iconName = 'settings'; break;
   }
 
   return (
     <View style={[styles.iconWrapper, focused && styles.activeBubble]}>
-      <Ionicons name={iconName} size={22} color={color} />
+      <Icon name={iconName as any} size={22} color={color} />
     </View>
   );
 };

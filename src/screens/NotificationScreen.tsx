@@ -8,7 +8,7 @@ import {
   StatusBar 
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';

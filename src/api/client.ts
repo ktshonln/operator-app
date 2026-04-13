@@ -1,6 +1,7 @@
 import { API_CONFIG } from './config';
 import { authStore } from './authStore';
 import { Organization } from '../types/organization';
+import { Role, CreateRoleRequest, UpdateRoleRequest, Grant } from '../types/role';
 
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -167,5 +168,121 @@ export const updateOrganization = async (id: string, data: Partial<Organization>
   return apiClient(`/organizations/${id}`, {
     method: 'PATCH',
     body: data,
+  });
+};
+
+// OTP API functions
+export const resendOTP = async (identifier: string) => {
+  return apiClient('/auth/resend-otp', {
+    method: 'POST',
+    body: { identifier },
+  });
+};
+
+// 2FA Verification API
+export const verify2FA = async (userId: string, deviceToken: string) => {
+  return apiClient('/auth/verify-2fa', {
+    method: 'POST',
+    body: { 
+      user_id: userId,
+      device_token: deviceToken 
+    },
+  });
+};
+
+// Role Management API functions
+export const createRole = async (roleData: CreateRoleRequest): Promise<Role> => {
+  return apiClient('/roles', {
+    method: 'POST',
+    body: roleData,
+  });
+};
+
+export const getRoles = async (orgId?: string): Promise<Role[]> => {
+  const endpoint = orgId ? `/roles?org_id=${orgId}` : '/roles';
+  return apiClient(endpoint, {
+    method: 'GET',
+  });
+};
+
+export const getRoleById = async (roleId: string): Promise<Role> => {
+  return apiClient(`/roles/${roleId}`, {
+    method: 'GET',
+  });
+};
+
+export const updateRole = async (roleId: string, roleData: UpdateRoleRequest): Promise<Role> => {
+  return apiClient(`/roles/${roleId}`, {
+    method: 'PATCH',
+    body: roleData,
+  });
+};
+
+export const deleteRole = async (roleId: string): Promise<void> => {
+  return apiClient(`/roles/${roleId}`, {
+    method: 'DELETE',
+  });
+};
+
+// Role Grant Management API functions
+export const addGrantToRole = async (roleId: string, grantId: string) => {
+  return apiClient(`/roles/${roleId}/grants`, {
+    method: 'POST',
+    body: { 
+      pattern: grantId 
+    },
+  });
+};
+
+export const removeGrantFromRole = async (roleId: string, grantId: string) => {
+  return apiClient(`/roles/${roleId}/grants/${grantId}`, {
+    method: 'DELETE',
+  });
+};
+
+// User Management API functions
+export const getUsers = async (orgId?: string) => {
+  const endpoint = orgId ? `/users?org_id=${orgId}` : '/users';
+  return apiClient(endpoint, {
+    method: 'GET',
+  });
+};
+
+export const getUserById = async (userId: string) => {
+  return apiClient(`/users/${userId}`, {
+    method: 'GET',
+  });
+};
+
+export const createUser = async (userData: {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number?: string;
+  password: string;
+  role_id: string;
+}) => {
+  return apiClient('/users', {
+    method: 'POST',
+    body: userData,
+  });
+};
+
+export const updateUser = async (userId: string, userData: {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone_number?: string;
+  role_id?: string;
+}) => {
+  return apiClient(`/users/${userId}`, {
+    method: 'PATCH',
+    body: userData,
+  });
+};
+
+export const deleteUser = async (userId: string) => {
+  return apiClient(`/users/${userId}`, {
+    method: 'DELETE',
   });
 };
