@@ -199,7 +199,7 @@ export const SettingsScreen: React.FC = () => {
         />
         <SettingItem 
           title="My Permissions" 
-          icon="key" 
+          icon="shield-check" 
           onPress={() => navigation.navigate('UserPermissions')}
         />
         <SettingItem 

@@ -132,7 +132,28 @@ export const RoleManagementScreen: React.FC = () => {
     }
   };
 
+  const handleManageGrants = (role: Role) => {
+    if (role.is_managed) {
+      Alert.alert(
+        'Cannot Modify Managed Role',
+        'This is a system-managed role and cannot be modified. Only custom roles can have their grants changed.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setSelectedRole(role);
+    setShowGrantModal(true);
+  };
+
   const handleEditRole = (role: Role) => {
+    if (role.is_managed) {
+      Alert.alert(
+        'Cannot Edit Managed Role',
+        'This is a system-managed role and cannot be edited. Only custom roles can be modified.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setEditingRole(role);
     setEditName(role.name);
     setEditDescription(role.description || '');
@@ -140,11 +161,6 @@ export const RoleManagementScreen: React.FC = () => {
     const patterns = (role.grants || []).map(grant => grant.pattern);
     setEditPermissions(patterns);
     setShowEditModal(true);
-  };
-
-  const handleManageGrants = (role: Role) => {
-    setSelectedRole(role);
-    setShowGrantModal(true);
   };
 
   const handleAddGrant = async (grantPattern: string) => {
@@ -275,6 +291,15 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleDeleteRole = (role: Role) => {
+    if (role.is_managed) {
+      Alert.alert(
+        'Cannot Delete Managed Role',
+        'This is a system-managed role and cannot be deleted. Only custom roles can be removed.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     Alert.alert(
       'Delete Role',
       `Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`,
@@ -320,10 +345,19 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const renderRoleItem = ({ item }: { item: Role }) => (
-    <View style={styles.roleCard}>
+    <View style={[styles.roleCard, item.is_managed && styles.managedRoleCard]}>
       <View style={styles.roleHeader}>
         <View style={styles.roleInfo}>
-          <Typography variant="body" style={styles.roleName}>{item.name}</Typography>
+          <View style={styles.roleNameContainer}>
+            <Typography variant="body" style={styles.roleName}>{item.name}</Typography>
+            {item.is_managed && (
+              <View style={styles.managedBadge}>
+                <Typography variant="caption" color={COLORS.white} style={styles.managedBadgeText}>
+                  SYSTEM
+                </Typography>
+              </View>
+            )}
+          </View>
           {item.description && (
             <Typography variant="caption" color={COLORS.textSecondary} style={styles.roleDescription}>
               {item.description}
@@ -332,22 +366,25 @@ export const RoleManagementScreen: React.FC = () => {
         </View>
         <View style={styles.roleActions}>
           <TouchableOpacity 
-            style={styles.actionButton}
+            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
             onPress={() => handleManageGrants(item)}
+            disabled={item.is_managed}
           >
-            <Icon name="shield" size={18} color={COLORS.brand} />
+            <Icon name="shield" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.brand} />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.actionButton}
+            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
             onPress={() => handleEditRole(item)}
+            disabled={item.is_managed}
           >
-            <Icon name="edit" size={18} color={COLORS.brand} />
+            <Icon name="edit" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.brand} />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.actionButton}
+            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
             onPress={() => handleDeleteRole(item)}
+            disabled={item.is_managed}
           >
-            <Icon name="trash" size={18} color={COLORS.error} />
+            <Icon name="trash" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.error} />
           </TouchableOpacity>
         </View>
       </View>
@@ -705,6 +742,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  managedRoleCard: {
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
   roleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -714,10 +756,25 @@ const styles = StyleSheet.create({
   roleInfo: {
     flex: 1,
   },
+  roleNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   roleName: {
     fontWeight: 'bold',
     fontSize: 16,
-    marginBottom: 4,
+    marginRight: 8,
+  },
+  managedBadge: {
+    backgroundColor: COLORS.textSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  managedBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   roleDescription: {
     lineHeight: 18,
@@ -730,6 +787,10 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: '#F8FAFC',
+  },
+  disabledActionButton: {
+    backgroundColor: '#F1F3F4',
+    opacity: 0.6,
   },
   permissionsContainer: {
     marginTop: 8,
