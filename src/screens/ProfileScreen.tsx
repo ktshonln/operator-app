@@ -21,7 +21,9 @@ import { Icon } from '../components/Icon';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
-import { apiClient, getMyOrganization, updateOrganization } from '../api/client';
+import { apiClient, getMyOrganization, updateOrganization, getAvatarPresignedUrl, updateUserAvatar, uploadImageToPresignedUrl } from '../api/client';
+import { API_CONFIG } from '../api/config';
+import { authStore } from '../api/authStore';
 import { Organization } from '../types/organization';
 
 
@@ -34,6 +36,8 @@ export const ProfileScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -51,8 +55,10 @@ export const ProfileScreen: React.FC = () => {
         setLastName(response.last_name || '');
         setEmail(response.email || '');
         setPhoneNumber(response.phone_number || '');
+        setAvatarPath(response.avatar_path || null);
+        // If there's an avatar_path, construct the full URL
         if (response.avatar_path) {
-          setAvatar(response.avatar_path);
+          setAvatar(`${API_CONFIG.CDN_URL}/${response.avatar_path}`);
         }
       }
     } catch (error: any) {
@@ -68,9 +74,7 @@ export const ProfileScreen: React.FC = () => {
               text: 'OK',
               onPress: () => {
                 // Clear auth data and navigate to login
-                import('../api/authStore').then(({ authStore }) => {
-                  authStore.clearAll();
-                });
+                authStore.clearAll();
                 navigation.reset({
                   index: 0,
                   routes: [{ name: 'Login' }],
@@ -103,9 +107,7 @@ export const ProfileScreen: React.FC = () => {
             {
               text: 'OK',
               onPress: () => {
-                import('../api/authStore').then(({ authStore }) => {
-                  authStore.clearAll();
-                });
+                authStore.clearAll();
                 navigation.reset({
                   index: 0,
                   routes: [{ name: 'Login' }],
@@ -121,15 +123,70 @@ export const ProfileScreen: React.FC = () => {
   const handleSelectImage = async () => {
     // No permissions request is necessary for launching the image library
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
 
     if (!result.canceled) {
-      setAvatar(result.assets[0].uri);
+      const selectedImage = result.assets[0];
+      await uploadAvatar(selectedImage.uri, selectedImage.mimeType || 'image/jpeg');
     }
+  };
+
+  const uploadAvatar = async (imageUri: string, mimeType: string) => {
+    setUploadingAvatar(true);
+    try {
+      // Step 1: Get presigned URL
+      const presignedResponse = await getAvatarPresignedUrl(mimeType);
+      const { upload_url, path } = presignedResponse;
+
+      // Step 2: Upload image to presigned URL
+      await uploadImageToPresignedUrl(upload_url, imageUri, mimeType);
+
+      // Step 3: Update user record with avatar path
+      await updateUserAvatar(path);
+
+      // Step 4: Update local state
+      setAvatarPath(path);
+      setAvatar(imageUri); // Show the local image immediately
+      
+      Alert.alert('Success', 'Profile picture updated successfully!');
+    } catch (error: any) {
+      console.error('Avatar upload error:', error);
+      Alert.alert('Error', error.message || 'Failed to upload profile picture');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    Alert.alert(
+      'Remove Profile Picture',
+      'Are you sure you want to remove your profile picture?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setUploadingAvatar(true);
+            try {
+              await updateUserAvatar(null);
+              setAvatarPath(null);
+              setAvatar(null);
+              Alert.alert('Success', 'Profile picture removed successfully!');
+            } catch (error: any) {
+              console.error('Avatar removal error:', error);
+              Alert.alert('Error', error.message || 'Failed to remove profile picture');
+            } finally {
+              setUploadingAvatar(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
 
@@ -189,18 +246,33 @@ export const ProfileScreen: React.FC = () => {
                   <Icon name="person" size={50} color="#CBD5E0" />
                 </View>
               )}
+              {uploadingAvatar && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                </View>
+              )}
               <TouchableOpacity 
                 style={styles.editBadge}
                 onPress={handleSelectImage}
+                disabled={uploadingAvatar}
               >
                 <Icon name="camera" size={18} color={COLORS.white} />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={handleSelectImage}>
-              <Typography variant="caption" color={COLORS.brand} style={styles.editLink}>
-                {t('profile.editAvatar')}
-              </Typography>
-            </TouchableOpacity>
+            <View style={styles.avatarActions}>
+              <TouchableOpacity onPress={handleSelectImage} disabled={uploadingAvatar}>
+                <Typography variant="caption" color={uploadingAvatar ? COLORS.textSecondary : COLORS.brand} style={styles.editLink}>
+                  {uploadingAvatar ? 'Uploading...' : t('profile.editAvatar')}
+                </Typography>
+              </TouchableOpacity>
+              {avatar && !uploadingAvatar && (
+                <TouchableOpacity onPress={removeAvatar} style={styles.removeButton}>
+                  <Typography variant="caption" color="#E53E3E" style={styles.editLink}>
+                    Remove
+                  </Typography>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -348,6 +420,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: COLORS.white,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 55,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  removeButton: {
+    marginLeft: 8,
   },
   editLink: {
     fontWeight: '600',

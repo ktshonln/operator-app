@@ -1,7 +1,7 @@
 import { API_CONFIG } from './config';
 import { authStore } from './authStore';
 import { Organization } from '../types/organization';
-import { Role, CreateRoleRequest, UpdateRoleRequest, Grant } from '../types/role';
+import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
 
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -12,7 +12,11 @@ interface RequestOptions {
   body?: any;
 }
 
-export const apiClient = async (endpoint: string, options: RequestOptions = {}) => {
+// Track if we're currently refreshing to avoid multiple refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<any> | null = null;
+
+export const apiClient = async (endpoint: string, options: RequestOptions = {}, isRetry = false) => {
   const { method = 'GET', headers = {}, body } = options;
 
   const url = `${API_CONFIG.BASE_URL}${endpoint}`;
@@ -62,7 +66,56 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}) 
     }
 
     if (!response.ok) {
-      // Handle token expiration globally
+      // Handle token expiration with automatic refresh
+      if (response.status === 401 && !isRetry && endpoint !== '/auth/refresh') {
+        try {
+          // If we're already refreshing, wait for that to complete
+          if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+            // Retry the original request with the new token
+            return apiClient(endpoint, options, true);
+          }
+
+          // Start refresh process
+          if (!isRefreshing) {
+            isRefreshing = true;
+            refreshPromise = refreshAccessToken();
+            
+            const refreshResponse = await refreshPromise;
+            
+            if (refreshResponse.access_token) {
+              await authStore.saveToken(refreshResponse.access_token);
+              
+              // If new refresh token is provided, save it
+              if (refreshResponse.refresh_token) {
+                await authStore.saveRefreshToken(refreshResponse.refresh_token);
+              }
+              
+              isRefreshing = false;
+              refreshPromise = null;
+              
+              // Retry the original request with the new token
+              return apiClient(endpoint, options, true);
+            }
+          }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          isRefreshing = false;
+          refreshPromise = null;
+          
+          // Clear expired tokens and redirect to login
+          await authStore.clearAll();
+          
+          throw {
+            status: 401,
+            message: 'Your session has expired. Please login again.',
+            data,
+            isTokenExpired: true,
+          };
+        }
+      }
+      
+      // Handle other 401 errors or if refresh failed
       if (response.status === 401) {
         // Clear expired token
         await authStore.clearAll();
@@ -190,8 +243,25 @@ export const verify2FA = async (userId: string, deviceToken: string) => {
   });
 };
 
+// Token refresh API
+export const refreshAccessToken = async () => {
+  const refreshToken = await authStore.getRefreshToken();
+  
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  return apiClient('/auth/refresh', {
+    method: 'POST',
+    body: { 
+      refresh_token: refreshToken 
+    },
+  });
+};
+
 // Role Management API functions
 export const createRole = async (roleData: CreateRoleRequest): Promise<Role> => {
+  console.log('API Client - Creating role with data:', JSON.stringify(roleData, null, 2));
   return apiClient('/roles', {
     method: 'POST',
     body: roleData,
@@ -200,9 +270,49 @@ export const createRole = async (roleData: CreateRoleRequest): Promise<Role> => 
 
 export const getRoles = async (orgId?: string): Promise<Role[]> => {
   const endpoint = orgId ? `/roles?org_id=${orgId}` : '/roles';
-  return apiClient(endpoint, {
+  const response = await apiClient(endpoint, {
     method: 'GET',
   });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
+};
+
+// Get roles with grants by fetching each role individually
+export const getRolesWithGrants = async (orgId?: string): Promise<Role[]> => {
+  try {
+    // First get the list of roles
+    const roles = await getRoles(orgId);
+    
+    // Then fetch detailed information for each role to get grants
+    const rolesWithGrants = await Promise.all(
+      roles.map(async (role) => {
+        try {
+          const detailedRole = await getRoleById(role.id);
+          return detailedRole;
+        } catch (error) {
+          console.warn(`Failed to fetch details for role ${role.id}:`, error);
+          // Return the basic role info if detailed fetch fails
+          return role;
+        }
+      })
+    );
+    
+    return rolesWithGrants;
+  } catch (error) {
+    console.error('Failed to fetch roles with grants:', error);
+    throw error;
+  }
 };
 
 export const getRoleById = async (roleId: string): Promise<Role> => {
@@ -224,8 +334,49 @@ export const deleteRole = async (roleId: string): Promise<void> => {
   });
 };
 
+// Permissions API functions
+export const getPermissions = async (): Promise<Permission[]> => {
+  const response = await apiClient('/permissions', {
+    method: 'GET',
+  });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
+};
+
+// Get user's permissions
+export const getUserPermissions = async (): Promise<Permission[]> => {
+  const response = await apiClient('/users/me/permissions', {
+    method: 'GET',
+  });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
+};
+
 // Role Grant Management API functions
 export const addGrantToRole = async (roleId: string, grantId: string) => {
+  console.log('API Client - Adding grant to role:', { roleId, pattern: grantId });
   return apiClient(`/roles/${roleId}/grants`, {
     method: 'POST',
     body: { 
@@ -243,9 +394,22 @@ export const removeGrantFromRole = async (roleId: string, grantId: string) => {
 // User Management API functions
 export const getUsers = async (orgId?: string) => {
   const endpoint = orgId ? `/users?org_id=${orgId}` : '/users';
-  return apiClient(endpoint, {
+  const response = await apiClient(endpoint, {
     method: 'GET',
   });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
 };
 
 export const getUserById = async (userId: string) => {
@@ -285,4 +449,37 @@ export const deleteUser = async (userId: string) => {
   return apiClient(`/users/${userId}`, {
     method: 'DELETE',
   });
+};
+
+// Avatar Upload API functions
+export const getAvatarPresignedUrl = async (contentType: string) => {
+  return apiClient(`/users/me/avatar/presigned-url?content_type=${encodeURIComponent(contentType)}`, {
+    method: 'GET',
+  });
+};
+
+export const updateUserAvatar = async (avatarPath: string | null) => {
+  return apiClient('/users/me', {
+    method: 'PATCH',
+    body: { avatar_path: avatarPath },
+  });
+};
+
+export const uploadImageToPresignedUrl = async (uploadUrl: string, imageUri: string, contentType: string) => {
+  const response = await fetch(imageUri);
+  const blob = await response.blob();
+  
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: blob,
+  });
+  
+  if (!uploadResponse.ok) {
+    throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+  }
+  
+  return uploadResponse;
 };

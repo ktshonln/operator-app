@@ -5,6 +5,7 @@ import {
   User,
   Settings,
   Bell,
+  BellOff,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -36,6 +37,9 @@ import {
   Map,
   BarChart3,
   Send,
+  Ticket,
+  DollarSign,
+  RefreshCw,
 } from 'lucide-react-native';
 import { COLORS } from '../theme/colors';
 
@@ -44,6 +48,7 @@ export type IconName =
   | 'person' 
   | 'settings'
   | 'notifications'
+  | 'bell-off'
   | 'search'
   | 'chevron-left'
   | 'chevron-right'
@@ -74,7 +79,10 @@ export type IconName =
   | 'bus'
   | 'map'
   | 'chart'
-  | 'send';
+  | 'send'
+  | 'ticket'
+  | 'dollar-sign'
+  | 'refresh-cw';
 
 interface IconProps {
   name: IconName;
@@ -88,6 +96,7 @@ const iconMap = {
   'person': User,
   'settings': Settings,
   'notifications': Bell,
+  'bell-off': BellOff,
   'search': Search,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
@@ -119,6 +128,9 @@ const iconMap = {
   'map': Map,
   'chart': BarChart3,
   'send': Send,
+  'ticket': Ticket,
+  'dollar-sign': DollarSign,
+  'refresh-cw': RefreshCw,
 };
 
 export const Icon: React.FC<IconProps> = ({ 

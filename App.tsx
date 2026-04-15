@@ -21,6 +21,7 @@ import { UserFormScreen } from './src/screens/UserFormScreen';
 import { OrganizationScreen } from './src/screens/OrganizationScreen';
 import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
+import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
 
 const Stack = createStackNavigator();
 
@@ -57,6 +58,7 @@ function App() {
           <Stack.Screen name="Organization" component={OrganizationScreen} />
           <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
           <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
+          <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

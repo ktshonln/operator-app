@@ -17,8 +17,8 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getRoles, getRoleById, updateRole, deleteRole, createRole, addGrantToRole, removeGrantFromRole, getMyOrganization } from '../api/client';
-import { Role, CreateRoleRequest, UpdateRoleRequest, Grant } from '../types/role';
+import { getRoleById, updateRole, deleteRole, createRole, addGrantToRole, removeGrantFromRole, getMyOrganization, getRolesWithGrants, getPermissions } from '../api/client';
+import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
 
 export const RoleManagementScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -27,6 +27,8 @@ export const RoleManagementScreen: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -39,43 +41,25 @@ export const RoleManagementScreen: React.FC = () => {
   // Grant management state
   const [showGrantModal, setShowGrantModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [availableGrants, setAvailableGrants] = useState<string[]>([
-    'audit_log:read:org',
-    'users:create',
-    'users:read', 
-    'users:update',
-    'users:delete',
-    'roles:create',
-    'roles:read',
-    'roles:update', 
-    'roles:delete',
-    'organizations:read',
-    'organizations:update',
-    'reports:read',
-    'settings:read',
-    'settings:update'
-  ]);
-
-  // Available permissions
-  const availablePermissions = [
-    'users.create',
-    'users.read', 
-    'users.update',
-    'users.delete',
-    'roles.create',
-    'roles.read',
-    'roles.update', 
-    'roles.delete',
-    'organizations.read',
-    'organizations.update',
-    'reports.read',
-    'settings.read',
-    'settings.update'
-  ];
 
   useEffect(() => {
     fetchRoles();
+    fetchPermissions();
   }, []);
+
+  const fetchPermissions = async () => {
+    setPermissionsLoading(true);
+    try {
+      const permissionsData = await getPermissions();
+      setPermissions(permissionsData);
+    } catch (error: any) {
+      console.error('Failed to fetch permissions:', error);
+      // Don't show error to user, just use empty array
+      setPermissions([]);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   // Defensive effect to ensure roles is always an array
   useEffect(() => {
@@ -93,11 +77,11 @@ export const RoleManagementScreen: React.FC = () => {
       try {
         // Get organization-specific roles for non-platform admins
         const orgData = await getMyOrganization();
-        rolesData = await getRoles(orgData.id);
+        rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
         console.warn('Could not fetch organization, falling back to all roles:', orgError);
         // Fallback to all roles if organization fetch fails
-        rolesData = await getRoles();
+        rolesData = await getRolesWithGrants();
       }
       
       // Ensure rolesData is an array and not null/undefined
@@ -127,10 +111,10 @@ export const RoleManagementScreen: React.FC = () => {
       try {
         // Get organization-specific roles for non-platform admins
         const orgData = await getMyOrganization();
-        rolesData = await getRoles(orgData.id);
+        rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
         console.warn('Could not fetch organization, falling back to all roles:', orgError);
-        rolesData = await getRoles();
+        rolesData = await getRolesWithGrants();
       }
       
       // Ensure rolesData is an array and not null/undefined
@@ -152,7 +136,9 @@ export const RoleManagementScreen: React.FC = () => {
     setEditingRole(role);
     setEditName(role.name);
     setEditDescription(role.description || '');
-    setEditPermissions([...role.permissions]);
+    // Extract patterns from grants array
+    const patterns = (role.grants || []).map(grant => grant.pattern);
+    setEditPermissions(patterns);
     setShowEditModal(true);
   };
 
@@ -200,19 +186,13 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleUpdateRole = async () => {
-    if (!editName.trim()) {
-      Alert.alert('Error', 'Please enter a role name');
-      return;
-    }
-
     setSaving(true);
     try {
       if (editingRole) {
-        // Update existing role
+        // Update existing role - only send name and description
         const updateData: UpdateRoleRequest = {
           name: editName.trim(),
-          description: editDescription.trim() || undefined,
-          permissions: editPermissions
+          description: editDescription.trim() || undefined
         };
 
         const updatedRole = await updateRole(editingRole.id, updateData);
@@ -224,12 +204,38 @@ export const RoleManagementScreen: React.FC = () => {
         
         Alert.alert('Success', 'Role updated successfully');
       } else {
-        // Create new role
+        // Create new role - get organization ID and generate slug
+        let orgId: string | undefined;
+        try {
+          const orgData = await getMyOrganization();
+          orgId = orgData.id;
+          console.log('Got organization ID:', orgId);
+        } catch (orgError) {
+          console.warn('Could not fetch organization for role creation:', orgError);
+          Alert.alert('Error', 'Could not fetch organization information. Please try again.');
+          return;
+        }
+
+        if (!orgId) {
+          Alert.alert('Error', 'Could not fetch organization information. Please try again.');
+          return;
+        }
+
+        console.log('Selected permissions (editPermissions):', editPermissions);
+        console.log('Organization ID:', orgId);
+
         const createData: CreateRoleRequest = {
           name: editName.trim(),
-          description: editDescription.trim() || undefined,
-          permissions: editPermissions
+          org_id: orgId,
+          patterns: editPermissions
         };
+
+        // Only add description if it's not empty
+        if (editDescription.trim()) {
+          createData.description = editDescription.trim();
+        }
+
+        console.log('Creating role with data:', JSON.stringify(createData, null, 2));
 
         const newRole = await createRole(createData);
         
@@ -241,7 +247,28 @@ export const RoleManagementScreen: React.FC = () => {
       
       setShowEditModal(false);
     } catch (error: any) {
-      Alert.alert('Error', error.message || `Failed to ${editingRole ? 'update' : 'create'} role`);
+      console.error('Role creation/update error:', error);
+      
+      let errorMessage = error.message || `Failed to ${editingRole ? 'update' : 'create'} role`;
+      
+      // If it's a validation error, try to extract detailed information
+      if (error.status === 422 && error.data?.error?.details) {
+        console.log('Validation error details:', error.data.error.details);
+        
+        // Try to format validation errors for display
+        if (Array.isArray(error.data.error.details)) {
+          const validationMessages = error.data.error.details.map((detail: any) => {
+            if (typeof detail === 'string') return detail;
+            if (detail.message) return detail.message;
+            if (detail.field && detail.error) return `${detail.field}: ${detail.error}`;
+            return JSON.stringify(detail);
+          }).join('\n');
+          
+          errorMessage = `Validation failed:\n${validationMessages}`;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setSaving(false);
     }
@@ -270,12 +297,26 @@ export const RoleManagementScreen: React.FC = () => {
     );
   };
 
-  const togglePermission = (permission: string) => {
+  const togglePermission = (permissionCode: string) => {
     setEditPermissions(prev => 
-      prev.includes(permission) 
-        ? prev.filter(p => p !== permission)
-        : [...prev, permission]
+      prev.includes(permissionCode) 
+        ? prev.filter(p => p !== permissionCode)
+        : [...prev, permissionCode]
     );
+  };
+
+  // Get available grant patterns from permissions
+  const getAvailableGrantPatterns = () => {
+    return permissions.map(permission => {
+      // Create pattern with org scope by default
+      return `${permission.code}:org`;
+    });
+  };
+
+  // Get permission display info
+  const getPermissionDisplayInfo = (code: string) => {
+    const permission = permissions.find(p => p.code === code || code.startsWith(p.code));
+    return permission || { display_name: code, description: '', group: 'Other' };
   };
 
   const renderRoleItem = ({ item }: { item: Role }) => (
@@ -313,20 +354,20 @@ export const RoleManagementScreen: React.FC = () => {
       
       <View style={styles.permissionsContainer}>
         <Typography variant="caption" color={COLORS.textSecondary} style={styles.permissionsLabel}>
-          Permissions ({item.permissions.length})
+          Patterns ({(item.grants || []).length})
         </Typography>
         <View style={styles.permissionsList}>
-          {item.permissions.slice(0, 3).map(permission => (
-            <View key={permission} style={styles.permissionTag}>
+          {(item.grants || []).slice(0, 3).map(grant => (
+            <View key={grant.id} style={styles.permissionTag}>
               <Typography variant="caption" color={COLORS.brand}>
-                {permission.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {grant.pattern.replace(/:/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </Typography>
             </View>
           ))}
-          {item.permissions.length > 3 && (
+          {(item.grants || []).length > 3 && (
             <View style={styles.permissionTag}>
               <Typography variant="caption" color={COLORS.textSecondary}>
-                +{item.permissions.length - 3} more
+                +{(item.grants || []).length - 3} more
               </Typography>
             </View>
           )}
@@ -425,32 +466,71 @@ export const RoleManagementScreen: React.FC = () => {
             </View>
 
             <View style={styles.section}>
-              <Typography variant="h2" style={styles.sectionTitle}>Permissions</Typography>
+              <Typography variant="h2" style={styles.sectionTitle}>Permissions & Patterns</Typography>
               <Typography variant="caption" color={COLORS.textSecondary} style={{ marginBottom: 16 }}>
-                Select the permissions this role should have
+                Select the permission patterns this role should have
               </Typography>
               
-              {availablePermissions.map(permission => (
-                <TouchableOpacity
-                  key={permission}
-                  style={styles.permissionRow}
-                  onPress={() => togglePermission(permission)}
-                >
-                  <View style={styles.permissionLeft}>
-                    <View style={[
-                      styles.checkbox,
-                      editPermissions.includes(permission) && styles.checkboxActive
-                    ]}>
-                      {editPermissions.includes(permission) && (
-                        <Icon name="check" size={14} color={COLORS.white} />
-                      )}
-                    </View>
-                    <Typography variant="body" style={{ marginLeft: 12 }}>
-                      {permission.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {permissionsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={COLORS.brand} />
+                  <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8 }}>
+                    Loading permissions...
+                  </Typography>
+                </View>
+              ) : permissions.length > 0 ? (
+                // Group permissions by group
+                Object.entries(
+                  permissions.reduce((groups, permission) => {
+                    const group = permission.group || 'Other';
+                    if (!groups[group]) groups[group] = [];
+                    groups[group].push(permission);
+                    return groups;
+                  }, {} as Record<string, Permission[]>)
+                ).map(([groupName, groupPermissions]) => (
+                  <View key={groupName} style={styles.permissionGroup}>
+                    <Typography variant="caption" style={styles.permissionGroupTitle}>
+                      {groupName.toUpperCase()}
                     </Typography>
+                    {groupPermissions.map(permission => {
+                      const patternWithOrg = `${permission.code}:org`;
+                      return (
+                        <TouchableOpacity
+                          key={permission.id}
+                          style={styles.permissionRow}
+                          onPress={() => togglePermission(patternWithOrg)}
+                        >
+                          <View style={styles.permissionLeft}>
+                            <View style={[
+                              styles.checkbox,
+                              editPermissions.includes(patternWithOrg) && styles.checkboxActive
+                            ]}>
+                              {editPermissions.includes(patternWithOrg) && (
+                                <Icon name="check" size={14} color={COLORS.white} />
+                              )}
+                            </View>
+                            <View style={{ marginLeft: 12, flex: 1 }}>
+                              <Typography variant="body" style={{ fontWeight: '600' }}>
+                                {permission.display_name}
+                              </Typography>
+                              <Typography variant="caption" color={COLORS.textSecondary}>
+                                {permission.description}
+                              </Typography>
+                              <Typography variant="caption" color={COLORS.brand} style={{ fontFamily: 'monospace' }}>
+                                {patternWithOrg}
+                              </Typography>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                </TouchableOpacity>
-              ))}
+                ))
+              ) : (
+                <Typography variant="caption" color={COLORS.textSecondary} style={{ textAlign: 'center', padding: 20 }}>
+                  No permissions available
+                </Typography>
+              )}
             </View>
 
             <TouchableOpacity 
@@ -522,33 +602,77 @@ export const RoleManagementScreen: React.FC = () => {
                 Select a grant pattern to add to this role
               </Typography>
               
-              {availableGrants.map(grantPattern => {
-                const isAlreadyAssigned = selectedRole?.grants?.some(g => g.pattern === grantPattern);
-                return (
-                  <TouchableOpacity
-                    key={grantPattern}
-                    style={[
-                      styles.availableGrantItem,
-                      isAlreadyAssigned && styles.disabledGrantItem
-                    ]}
-                    onPress={() => !isAlreadyAssigned && handleAddGrant(grantPattern)}
-                    disabled={isAlreadyAssigned}
-                  >
-                    <Typography 
-                      variant="body" 
-                      color={isAlreadyAssigned ? COLORS.textSecondary : COLORS.text}
-                      style={styles.grantPatternText}
-                    >
-                      {grantPattern}
+              {permissionsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={COLORS.brand} />
+                  <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8 }}>
+                    Loading permissions...
+                  </Typography>
+                </View>
+              ) : permissions.length > 0 ? (
+                // Group permissions by group
+                Object.entries(
+                  permissions.reduce((groups, permission) => {
+                    const group = permission.group || 'Other';
+                    if (!groups[group]) groups[group] = [];
+                    groups[group].push(permission);
+                    return groups;
+                  }, {} as Record<string, Permission[]>)
+                ).map(([groupName, groupPermissions]) => (
+                  <View key={groupName} style={styles.permissionGroup}>
+                    <Typography variant="caption" style={styles.permissionGroupTitle}>
+                      {groupName.toUpperCase()}
                     </Typography>
-                    {isAlreadyAssigned ? (
-                      <Icon name="check" size={16} color={COLORS.textSecondary} />
-                    ) : (
-                      <Icon name="add" size={16} color={COLORS.brand} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                    {groupPermissions.map(permission => {
+                      const patternWithOrg = `${permission.code}:org`;
+                      const isAlreadyAssigned = selectedRole?.grants?.some(g => g.pattern === patternWithOrg);
+                      return (
+                        <TouchableOpacity
+                          key={permission.id}
+                          style={[
+                            styles.availableGrantItem,
+                            isAlreadyAssigned && styles.disabledGrantItem
+                          ]}
+                          onPress={() => !isAlreadyAssigned && handleAddGrant(patternWithOrg)}
+                          disabled={isAlreadyAssigned}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Typography 
+                              variant="body" 
+                              color={isAlreadyAssigned ? COLORS.textSecondary : COLORS.text}
+                              style={{ fontWeight: '600' }}
+                            >
+                              {permission.display_name}
+                            </Typography>
+                            <Typography 
+                              variant="caption" 
+                              color={isAlreadyAssigned ? COLORS.textSecondary : COLORS.textSecondary}
+                            >
+                              {permission.description}
+                            </Typography>
+                            <Typography 
+                              variant="caption" 
+                              color={isAlreadyAssigned ? COLORS.textSecondary : COLORS.brand}
+                              style={{ fontFamily: 'monospace' }}
+                            >
+                              {patternWithOrg}
+                            </Typography>
+                          </View>
+                          {isAlreadyAssigned ? (
+                            <Icon name="check" size={16} color={COLORS.textSecondary} />
+                          ) : (
+                            <Icon name="add" size={16} color={COLORS.brand} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))
+              ) : (
+                <Typography variant="caption" color={COLORS.textSecondary} style={{ textAlign: 'center', padding: 20 }}>
+                  No permissions available
+                </Typography>
+              )}
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -777,5 +901,21 @@ const styles = StyleSheet.create({
   grantPatternText: {
     flex: 1,
     fontFamily: 'monospace',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  permissionGroup: {
+    marginBottom: 16,
+  },
+  permissionGroupTitle: {
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
 });

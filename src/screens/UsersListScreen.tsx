@@ -114,9 +114,16 @@ export const UsersListScreen = () => {
         </View>
       </View>
       <View style={styles.cardRight}>
-        <Typography variant="caption" color={COLORS.brand} style={styles.roleBadge}>
-          {item.role?.name || 'No Role'}
-        </Typography>
+        <View style={styles.roleInfo}>
+          <Typography variant="caption" color={COLORS.brand} style={styles.roleBadge}>
+            {item.role?.name || 'No Role'}
+          </Typography>
+          {item.role?.name && (
+            <Typography variant="caption" color={COLORS.textSecondary} style={styles.roleId}>
+              ID: {item.role_id.slice(0, 8)}...
+            </Typography>
+          )}
+        </View>
         <Icon name="chevron-right" size={20} color={COLORS.textSecondary} style={{ marginLeft: 8 }} />
       </View>
     </TouchableOpacity>
@@ -205,6 +212,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  roleInfo: {
+    alignItems: 'flex-end',
+  },
   roleBadge: {
     backgroundColor: '#E6F0FF',
     paddingHorizontal: 8,
@@ -212,6 +222,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     fontWeight: '600',
+  },
+  roleId: {
+    fontSize: 10,
+    marginTop: 2,
+    fontFamily: 'monospace',
   },
   emptyContainer: {
     alignItems: 'center',

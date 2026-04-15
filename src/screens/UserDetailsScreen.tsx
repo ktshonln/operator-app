@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -14,8 +14,9 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { deleteUser } from '../api/client';
+import { deleteUser, getRoleById } from '../api/client';
 import { User } from '../types/user';
+import { Role } from '../types/role';
 
 export const UserDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -24,6 +25,27 @@ export const UserDetailsScreen: React.FC = () => {
   const { user } = route.params as { user: User };
   
   const [deleting, setDeleting] = useState(false);
+  const [roleDetails, setRoleDetails] = useState<Role | null>(null);
+  const [loadingRole, setLoadingRole] = useState(false);
+
+  useEffect(() => {
+    if (user.role_id) {
+      fetchRoleDetails();
+    }
+  }, [user.role_id]);
+
+  const fetchRoleDetails = async () => {
+    setLoadingRole(true);
+    try {
+      const role = await getRoleById(user.role_id);
+      setRoleDetails(role);
+    } catch (error) {
+      console.warn('Failed to fetch role details:', error);
+      // Don't show error to user, just use basic role info
+    } finally {
+      setLoadingRole(false);
+    }
+  };
 
   const handleEdit = () => {
     navigation.navigate('UserForm', { userId: user.id });
@@ -130,16 +152,45 @@ export const UserDetailsScreen: React.FC = () => {
           
           <InfoRow 
             label="Current Role"
-            value={user.role?.name || 'No Role Assigned'}
+            value={roleDetails?.name || user.role?.name || 'No Role Assigned'}
             icon="shield"
           />
           
-          {user.role?.description && (
+          {(roleDetails?.description || user.role?.description) && (
             <InfoRow 
               label="Role Description"
-              value={user.role.description}
+              value={roleDetails?.description || user.role?.description || ''}
               icon="info"
             />
+          )}
+
+          {loadingRole ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={COLORS.brand} />
+              <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8 }}>
+                Loading role permissions...
+              </Typography>
+            </View>
+          ) : roleDetails?.grants && roleDetails.grants.length > 0 ? (
+            <View style={styles.permissionsContainer}>
+              <Typography variant="caption" color={COLORS.textSecondary} style={styles.permissionsTitle}>
+                PERMISSIONS
+              </Typography>
+              {roleDetails.grants.map((grant, index) => (
+                <View key={grant.id} style={styles.permissionItem}>
+                  <Icon name="check" size={16} color={COLORS.success} />
+                  <Typography variant="caption" style={styles.permissionText}>
+                    {grant.pattern.replace(/:/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </Typography>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noPermissionsContainer}>
+              <Typography variant="caption" color={COLORS.textSecondary}>
+                No specific permissions assigned to this role
+              </Typography>
+            </View>
           )}
         </View>
 
@@ -311,5 +362,37 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  permissionsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EDF2F7',
+  },
+  permissionsTitle: {
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    color: COLORS.textSecondary,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  permissionText: {
+    marginLeft: 8,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  noPermissionsContainer: {
+    paddingVertical: 12,
+    alignItems: 'center',
   },
 });

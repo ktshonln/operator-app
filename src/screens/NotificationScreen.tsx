@@ -8,7 +8,7 @@ import {
   StatusBar 
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '../components/Icon';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
@@ -19,7 +19,7 @@ const NOTIFICATIONS = [
     titleKey: 'notifications.newBooking', 
     messageKey: 'notifications.newBookingMsg', 
     time: '2m', 
-    icon: 'ticket-outline',
+    icon: 'ticket',
     type: 'booking',
     isUnread: true
   },
@@ -28,7 +28,7 @@ const NOTIFICATIONS = [
     titleKey: 'notifications.vehicleAlert', 
     messageKey: 'notifications.vehicleAlertMsg', 
     time: '15m', 
-    icon: 'bus-outline',
+    icon: 'bus',
     type: 'alert',
     isUnread: true
   },
@@ -37,7 +37,7 @@ const NOTIFICATIONS = [
     titleKey: 'notifications.paymentConfirmed', 
     messageKey: 'notifications.paymentConfirmedMsg', 
     time: '1h', 
-    icon: 'cash-outline',
+    icon: 'dollar-sign',
     type: 'payment',
     isUnread: false
   },
@@ -46,7 +46,7 @@ const NOTIFICATIONS = [
     titleKey: 'notifications.systemUpdate', 
     messageKey: 'notifications.systemUpdateMsg', 
     time: '3h', 
-    icon: 'refresh-circle-outline',
+    icon: 'refresh-cw',
     type: 'system',
     isUnread: false
   },
@@ -78,7 +78,7 @@ export const NotificationScreen = ({ navigation }: any) => {
   const renderItem = ({ item }: { item: typeof NOTIFICATIONS[0] }) => (
     <TouchableOpacity style={[styles.item, item.isUnread && styles.unreadItem]}>
       <View style={[styles.iconCircle, { backgroundColor: getBgColor(item.type) }]}>
-        <Ionicons name={item.icon} size={20} color={getIconColor(item.type)} />
+        <Icon name={item.icon as any} size={20} color={getIconColor(item.type)} />
       </View>
       <View style={styles.content}>
         <View style={styles.row}>
@@ -110,7 +110,7 @@ export const NotificationScreen = ({ navigation }: any) => {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-off-outline" size={60} color="#CBD5E0" />
+            <Icon name="bell-off" size={60} color="#CBD5E0" />
             <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16 }}>
               {t('notifications.empty')}
             </Typography>

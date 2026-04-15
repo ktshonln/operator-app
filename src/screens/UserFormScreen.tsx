@@ -6,8 +6,8 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { createRole, getRoles, getMyOrganization, createUser, updateUser, getUserById } from '../api/client';
-import { Role } from '../types/role';
+import { createRole, getMyOrganization, createUser, updateUser, getUserById, getRolesWithGrants, getPermissions } from '../api/client';
+import { Role, Permission } from '../types/role';
 import { CreateUserRequest, UpdateUserRequest } from '../types/user';
 
 export const UserFormScreen = () => {
@@ -27,29 +27,14 @@ export const UserFormScreen = () => {
   const [loading, setLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(isEdit);
+  const [availablePermissions, setAvailablePermissions] = useState<Permission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   
   // Role creation modal state
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDescription, setNewRoleDescription] = useState('');
-  const [newRolePermissions, setNewRolePermissions] = useState<string[]>([]);
-  
-  // Available permissions (you can customize these based on your API)
-  const availablePermissions = [
-    'users.create',
-    'users.read', 
-    'users.update',
-    'users.delete',
-    'roles.create',
-    'roles.read',
-    'roles.update', 
-    'roles.delete',
-    'organizations.read',
-    'organizations.update',
-    'reports.read',
-    'settings.read',
-    'settings.update'
-  ];
+  const [newRolePermissions, setNewRolePermissions] = useState<string>(''); // Single pattern instead of array
 
   const [permissions, setPermissions] = useState({
     fleet: true,
@@ -60,10 +45,24 @@ export const UserFormScreen = () => {
 
   useEffect(() => {
     fetchRoles();
+    fetchPermissions();
     if (isEdit && userId) {
       fetchUser();
     }
   }, []);
+
+  const fetchPermissions = async () => {
+    setPermissionsLoading(true);
+    try {
+      const permissionsData = await getPermissions();
+      setAvailablePermissions(permissionsData);
+    } catch (error: any) {
+      console.error('Failed to fetch permissions:', error);
+      setAvailablePermissions([]);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const fetchUser = async () => {
     setUserLoading(true);
@@ -98,12 +97,12 @@ export const UserFormScreen = () => {
       let rolesData;
       try {
         const orgData = await getMyOrganization();
-        // Use organization ID to filter roles
-        rolesData = await getRoles(orgData.id);
+        // Use organization ID to filter roles and get grants
+        rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
         console.warn('Could not fetch organization, falling back to all roles:', orgError);
         // Fallback to all roles if organization fetch fails
-        rolesData = await getRoles();
+        rolesData = await getRolesWithGrants();
       }
       
       // Ensure rolesData is an array and not null/undefined
@@ -126,22 +125,24 @@ export const UserFormScreen = () => {
   };
 
   const handleCreateRole = async () => {
-    if (!newRoleName.trim()) {
-      Alert.alert('Error', 'Please enter a role name');
-      return;
-    }
-
-    if (newRolePermissions.length === 0) {
-      Alert.alert('Error', 'Please select at least one permission');
-      return;
-    }
-
     setLoading(true);
     try {
+      // Get organization ID
+      let orgId: string;
+      try {
+        const orgData = await getMyOrganization();
+        orgId = orgData.id;
+      } catch (orgError) {
+        console.warn('Could not fetch organization for role creation:', orgError);
+        Alert.alert('Error', 'Could not fetch organization information. Please try again.');
+        return;
+      }
+
       const newRole = await createRole({
         name: newRoleName.trim(),
-        description: newRoleDescription.trim() || undefined,
-        permissions: newRolePermissions
+        org_id: orgId,
+        patterns: [newRolePermissions], // Wrap single pattern in array
+        description: newRoleDescription.trim() || undefined
       });
 
       // Add the new role to the list
@@ -151,7 +152,7 @@ export const UserFormScreen = () => {
       // Reset modal state
       setNewRoleName('');
       setNewRoleDescription('');
-      setNewRolePermissions([]);
+      setNewRolePermissions(''); // Reset to empty string
       setShowRoleModal(false);
       
       Alert.alert('Success', 'Role created successfully');
@@ -162,12 +163,8 @@ export const UserFormScreen = () => {
     }
   };
 
-  const togglePermission = (permission: string) => {
-    setNewRolePermissions(prev => 
-      prev.includes(permission) 
-        ? prev.filter(p => p !== permission)
-        : [...prev, permission]
-    );
+  const selectPermission = (permissionCode: string) => {
+    setNewRolePermissions(permissionCode); // Set single pattern
   };
 
   const handleSave = async () => {
@@ -398,32 +395,74 @@ export const UserFormScreen = () => {
             </View>
 
             <View style={styles.section}>
-              <Typography variant="h2" style={styles.sectionTitle}>Permissions</Typography>
+              <Typography variant="h2" style={styles.sectionTitle}>Permission Pattern</Typography>
               <Typography variant="caption" color={COLORS.textSecondary} style={{ marginBottom: 16 }}>
-                Select the permissions this role should have
+                Select one permission pattern for this role
               </Typography>
               
-              {availablePermissions.map(permission => (
-                <TouchableOpacity
-                  key={permission}
-                  style={styles.permissionRow}
-                  onPress={() => togglePermission(permission)}
-                >
-                  <View style={styles.permissionLeft}>
-                    <View style={[
-                      styles.checkbox,
-                      newRolePermissions.includes(permission) && styles.checkboxActive
-                    ]}>
-                      {newRolePermissions.includes(permission) && (
-                        <Icon name="check" size={14} color={COLORS.white} />
-                      )}
-                    </View>
-                    <Typography variant="body" style={{ marginLeft: 12 }}>
-                      {permission.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {permissionsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={COLORS.brand} />
+                  <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8 }}>
+                    Loading permissions...
+                  </Typography>
+                </View>
+              ) : availablePermissions.length > 0 ? (
+                // Group permissions by group
+                Object.entries(
+                  availablePermissions.reduce((groups, permission) => {
+                    const group = permission.group || 'Other';
+                    if (!groups[group]) groups[group] = [];
+                    groups[group].push(permission);
+                    return groups;
+                  }, {} as Record<string, Permission[]>)
+                ).map(([groupName, groupPermissions]) => (
+                  <View key={groupName} style={styles.permissionGroup}>
+                    <Typography variant="caption" style={styles.permissionGroupTitle}>
+                      {groupName.toUpperCase()}
                     </Typography>
+                    {groupPermissions.map(permission => {
+                      const patternWithOrg = `${permission.code}:org`;
+                      return (
+                        <TouchableOpacity
+                          key={permission.id}
+                          style={[
+                            styles.permissionRow,
+                            newRolePermissions === patternWithOrg && styles.selectedPermissionRow
+                          ]}
+                          onPress={() => selectPermission(patternWithOrg)}
+                        >
+                          <View style={styles.permissionLeft}>
+                            <View style={[
+                              styles.radioButton,
+                              newRolePermissions === patternWithOrg && styles.radioButtonActive
+                            ]}>
+                              {newRolePermissions === patternWithOrg && (
+                                <View style={styles.radioButtonInner} />
+                              )}
+                            </View>
+                            <View style={{ marginLeft: 12, flex: 1 }}>
+                              <Typography variant="body" style={{ fontWeight: '600' }}>
+                                {permission.display_name}
+                              </Typography>
+                              <Typography variant="caption" color={COLORS.textSecondary}>
+                                {permission.description}
+                              </Typography>
+                              <Typography variant="caption" color={COLORS.brand} style={{ fontFamily: 'monospace' }}>
+                                {patternWithOrg}
+                              </Typography>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                </TouchableOpacity>
-              ))}
+                ))
+              ) : (
+                <Typography variant="caption" color={COLORS.textSecondary} style={{ textAlign: 'center', padding: 20 }}>
+                  No permissions available
+                </Typography>
+              )}
             </View>
 
             <TouchableOpacity 
@@ -571,10 +610,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.brand,
     borderColor: COLORS.brand,
   },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioButtonActive: {
+    borderColor: COLORS.brand,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.brand,
+  },
+  selectedPermissionRow: {
+    backgroundColor: '#F0F8FF',
+  },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
+  },
+  permissionGroup: {
+    marginBottom: 16,
+  },
+  permissionGroupTitle: {
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
 });

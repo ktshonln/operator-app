@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
+import { API_CONFIG } from '../api/config';
 import { useOrganization } from '../hooks/useOrganization';
 import { authStore } from '../api/authStore';
 
@@ -24,6 +25,7 @@ export const SettingsScreen: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUserProfile();
@@ -34,12 +36,23 @@ export const SettingsScreen: React.FC = () => {
     try {
       const response = await apiClient('/users/me');
       setUser(response);
+      
+      // Set avatar URL if avatar_path exists
+      if (response.avatar_path) {
+        setAvatarUrl(`${API_CONFIG.CDN_URL}/${response.avatar_path}`);
+      } else {
+        setAvatarUrl(null);
+      }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       // Try to get cached user data
       const cachedUser = await authStore.getUser();
       if (cachedUser) {
         setUser(cachedUser);
+        // Check for cached avatar path
+        if (cachedUser.avatar_path) {
+          setAvatarUrl(`${API_CONFIG.CDN_URL}/${cachedUser.avatar_path}`);
+        }
       }
     } finally {
       setLoading(false);
@@ -139,11 +152,15 @@ export const SettingsScreen: React.FC = () => {
             <ActivityIndicator size="large" color={COLORS.brand} />
           ) : (
             <>
-              <View style={styles.avatar}>
-                <Typography variant="h2" color={COLORS.white}>
-                  {getInitials(user?.first_name, user?.last_name)}
-                </Typography>
-              </View>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Typography variant="h2" color={COLORS.white}>
+                    {getInitials(user?.first_name, user?.last_name)}
+                  </Typography>
+                </View>
+              )}
               <Typography variant="body" style={{ marginTop: 8, fontWeight: 'bold' }}>
                 {getUserDisplayName()}
               </Typography>
@@ -179,6 +196,11 @@ export const SettingsScreen: React.FC = () => {
           title="Role Management" 
           icon="shield" 
           onPress={() => navigation.navigate('RoleManagement')}
+        />
+        <SettingItem 
+          title="My Permissions" 
+          icon="key" 
+          onPress={() => navigation.navigate('UserPermissions')}
         />
         <SettingItem 
           title={t('settings.security')} 
@@ -238,6 +260,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.brand,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarPlaceholder: {
+    backgroundColor: COLORS.brand,
   },
   sectionHeader: {
     marginTop: 12,
