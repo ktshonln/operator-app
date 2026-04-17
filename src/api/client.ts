@@ -1,7 +1,7 @@
 import { API_CONFIG } from './config';
 import { authStore } from './authStore';
 import { Organization } from '../types/organization';
-import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
+import { Role, CreateRoleRequest, UpdateRoleRequest, Permission } from '../types/role';
 
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -96,6 +96,18 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
               
               // Retry the original request with the new token
               return apiClient(endpoint, options, true);
+            } else {
+              // No access token in response, clear tokens and redirect to login
+              isRefreshing = false;
+              refreshPromise = null;
+              await authStore.clearAll();
+              
+              throw {
+                status: 401,
+                message: 'Your session has expired. Please login again.',
+                data,
+                isTokenExpired: true,
+              };
             }
           }
         } catch (refreshError) {
@@ -155,7 +167,12 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
               }
               break;
             case 'INVALID_CREDENTIALS':
-              errorMessage = 'Invalid email/phone or password';
+              // Check if this is a token expiration issue
+              if (data.isTokenExpired || response.status === 401) {
+                errorMessage = 'Your session has expired. Please login again.';
+              } else {
+                errorMessage = 'Invalid email/phone or password';
+              }
               break;
             case 'USER_NOT_FOUND':
               errorMessage = 'User not found';
@@ -175,10 +192,16 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         errorMessage = 'Server error. Please try again later.';
       }
 
+      // Override message for token expiration cases
+      if (data && data.isTokenExpired) {
+        errorMessage = 'Your session has expired. Please login again.';
+      }
+
       throw {
         status: response.status,
         message: errorMessage,
         data,
+        isTokenExpired: data && data.isTokenExpired,
       };
     }
 
@@ -232,13 +255,39 @@ export const resendOTP = async (identifier: string) => {
   });
 };
 
-// 2FA Verification API
-export const verify2FA = async (userId: string, deviceToken: string) => {
-  return apiClient('/auth/verify-2fa', {
+// Enhanced OTP resend with user_id, purpose, and channel
+export const resendOTPEnhanced = async (userId: string, purpose: string, channel: string) => {
+  console.log('API Client - Resending OTP with enhanced format:', { userId, purpose, channel });
+  return apiClient('/auth/resend-otp', {
     method: 'POST',
     body: { 
       user_id: userId,
-      device_token: deviceToken 
+      purpose: purpose,
+      channel: channel
+    },
+  });
+};
+
+// 2FA Verification API
+export const initiate2FA = async (userId: string) => {
+  return apiClient('/auth/initiate-2fa', {
+    method: 'POST',
+    body: { 
+      user_id: userId 
+    },
+  });
+};
+
+export const verify2FA = async (userId: string, otp: string) => {
+  return apiClient('/auth/verify-2fa', {
+    method: 'POST',
+    headers: {
+      'X-Client-Type': 'mobile',
+    },
+    body: { 
+      user_id: userId,
+      otp: otp,
+      device_name: 'phone'
     },
   });
 };
@@ -248,14 +297,36 @@ export const refreshAccessToken = async () => {
   const refreshToken = await authStore.getRefreshToken();
   
   if (!refreshToken) {
+    console.warn('No refresh token available, clearing auth store');
+    await authStore.clearAll();
     throw new Error('No refresh token available');
   }
 
-  return apiClient('/auth/refresh', {
+  try {
+    return await apiClient('/auth/refresh', {
+      method: 'POST',
+      body: { 
+        refresh_token: refreshToken 
+      },
+    });
+  } catch (error) {
+    console.error('Refresh token request failed:', error);
+    // If refresh fails, clear all tokens
+    await authStore.clearAll();
+    throw error;
+  }
+};
+
+// Logout API functions
+export const logout = async () => {
+  return apiClient('/auth/logout', {
     method: 'POST',
-    body: { 
-      refresh_token: refreshToken 
-    },
+  });
+};
+
+export const logoutAll = async () => {
+  return apiClient('/auth/logout-all', {
+    method: 'POST',
   });
 };
 
@@ -462,6 +533,20 @@ export const updateUserAvatar = async (avatarPath: string | null) => {
   return apiClient('/users/me', {
     method: 'PATCH',
     body: { avatar_path: avatarPath },
+  });
+};
+
+// Organization Logo Upload API functions
+export const getOrganizationLogoPresignedUrl = async (orgId: string, contentType: string) => {
+  return apiClient(`/organizations/${orgId}/logo/presigned-url?content_type=${encodeURIComponent(contentType)}`, {
+    method: 'GET',
+  });
+};
+
+export const updateOrganizationLogo = async (orgId: string, logoPath: string | null) => {
+  return apiClient(`/organizations/${orgId}`, {
+    method: 'PATCH',
+    body: { logo_path: logoPath },
   });
 };
 

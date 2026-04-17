@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { Icon } from '../components/Icon';
-import { apiClient } from '../api/client';
+import { apiClient, logout, logoutAll, resendOTPEnhanced } from '../api/client';
 import { API_CONFIG } from '../api/config';
 import { useOrganization } from '../hooks/useOrganization';
 import { authStore } from '../api/authStore';
@@ -26,11 +26,23 @@ export const SettingsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [organizationLogoUrl, setOrganizationLogoUrl] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [sending2FA, setSending2FA] = useState(false);
 
   useEffect(() => {
     fetchUserProfile();
     fetchNotificationCount();
   }, []);
+
+  // Update organization logo when organization changes
+  useEffect(() => {
+    if (organization?.logo_path) {
+      setOrganizationLogoUrl(`${API_CONFIG.CDN_URL}/${organization.logo_path}`);
+    } else {
+      setOrganizationLogoUrl(null);
+    }
+  }, [organization]);
 
   const fetchUserProfile = async () => {
     try {
@@ -94,27 +106,113 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await authStore.clearAll();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    setLoggingOut(true);
+    try {
+      // Call logout API to invalidate current session
+      await logout();
+    } catch (error: any) {
+      console.error('Logout API error:', error);
+      // Continue with local logout even if API fails
+    } finally {
+      // Clear local storage and navigate to login
+      await authStore.clearAll();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      setLoggingOut(false);
+    }
   };
 
-  const SettingItem = ({ title, value, icon, onPress }: { 
+  const handleLogoutAll = async () => {
+    setLoggingOut(true);
+    try {
+      // Call logout all API to invalidate all sessions
+      await logoutAll();
+    } catch (error: any) {
+      console.error('Logout all API error:', error);
+      // Continue with local logout even if API fails
+    } finally {
+      // Clear local storage and navigate to login
+      await authStore.clearAll();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      setLoggingOut(false);
+    }
+  };
+
+  const showLogoutOptions = () => {
+    Alert.alert(
+      'Logout Options',
+      'Choose how you want to logout',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Logout This Device',
+          onPress: handleLogout
+        },
+        {
+          text: 'Logout All Devices',
+          style: 'destructive',
+          onPress: handleLogoutAll
+        }
+      ]
+    );
+  };
+
+  const handleStart2FA = async () => {
+    if (!user?.id) {
+      Alert.alert(t('common.error'), 'User information not found. Please try again.');
+      return;
+    }
+    
+    setSending2FA(true);
+    try {
+      // Step 1: Request 2FA OTP
+      // We use 'phone' as default channel, or email if available
+      const channel = user.phone_number ? 'phone' : 'email';
+      await resendOTPEnhanced(user.id, '2fa', channel);
+      
+      // Step 2: Navigate to TwoFactor screen
+      navigation.navigate('TwoFactor', { 
+        userId: user.id,
+        identifier: user.phone_number || user.email,
+        channel: channel
+      });
+    } catch (error: any) {
+      console.error('Failed to start 2FA:', error);
+      Alert.alert(t('common.error'), error.message || 'Failed to send verification code');
+    } finally {
+      setSending2FA(false);
+    }
+  };
+
+  const SettingItem = ({ title, value, icon, onPress, loading }: { 
     title: string, 
     value?: string, 
     icon: any, 
-    onPress?: () => void 
+    onPress?: () => void,
+    loading?: boolean
   }) => (
-    <TouchableOpacity style={styles.item} onPress={onPress}>
+    <TouchableOpacity style={styles.item} onPress={onPress} disabled={loading}>
       <View style={styles.itemLeft}>
         <Icon name={icon} size={20} color={COLORS.brand} style={styles.icon} />
         <Typography variant="body" style={styles.titleText}>{title}</Typography>
       </View>
       <View style={styles.right}>
-        {value && <Typography variant="caption" color={COLORS.textSecondary}>{value}</Typography>}
-        <Typography variant="body" color={COLORS.textSecondary}> ›</Typography>
+        {loading ? (
+          <ActivityIndicator size="small" color={COLORS.brand} style={{ marginRight: 8 }} />
+        ) : (
+          <>
+            {value && <Typography variant="caption" color={COLORS.textSecondary}>{value}</Typography>}
+            <Typography variant="body" color={COLORS.textSecondary}> ›</Typography>
+          </>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -168,9 +266,20 @@ export const SettingsScreen: React.FC = () => {
                 {getUserEmail()}
               </Typography>
               {organization && (
-                <Typography variant="caption" color={COLORS.brand} style={{ marginTop: 4 }}>
-                  {organization.name}
-                </Typography>
+                <View style={styles.organizationSection}>
+                  <View style={styles.organizationInfo}>
+                    {organizationLogoUrl ? (
+                      <Image source={{ uri: organizationLogoUrl }} style={styles.organizationLogo} />
+                    ) : (
+                      <View style={[styles.organizationLogo, styles.organizationLogoPlaceholder]}>
+                        <Icon name="business" size={16} color={COLORS.brand} />
+                      </View>
+                    )}
+                    <Typography variant="caption" color={COLORS.brand} style={styles.organizationName}>
+                      {organization.name}
+                    </Typography>
+                  </View>
+                </View>
               )}
             </>
           )}
@@ -210,7 +319,8 @@ export const SettingsScreen: React.FC = () => {
         <SettingItem 
           title="Device Verification" 
           icon="shield" 
-          onPress={() => navigation.navigate('TwoFactor')}
+          onPress={handleStart2FA}
+          loading={sending2FA}
         />
         <SettingItem 
           title={t('settings.alerts')} 
@@ -226,10 +336,15 @@ export const SettingsScreen: React.FC = () => {
         <LanguageItem lang={LANGUAGES[2]} />
 
         <TouchableOpacity 
-          style={styles.logoutButton} 
-          onPress={handleLogout}
+          style={[styles.logoutButton, loggingOut && { opacity: 0.7 }]} 
+          onPress={showLogoutOptions}
+          disabled={loggingOut}
         >
-          <Typography variant="caption" color="#E53E3E" style={{ fontWeight: 'bold' }}>{t('settings.logout')}</Typography>
+          {loggingOut ? (
+            <ActivityIndicator color="#E53E3E" size="small" />
+          ) : (
+            <Typography variant="caption" color="#E53E3E" style={{ fontWeight: 'bold' }}>{t('settings.logout')}</Typography>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -263,6 +378,36 @@ const styles = StyleSheet.create({
   },
   avatarPlaceholder: {
     backgroundColor: COLORS.brand,
+  },
+  organizationSection: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  organizationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  organizationLogo: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  organizationLogoPlaceholder: {
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.brand,
+  },
+  organizationName: {
+    fontWeight: '600',
   },
   sectionHeader: {
     marginTop: 12,

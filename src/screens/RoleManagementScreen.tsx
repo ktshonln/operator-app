@@ -73,20 +73,35 @@ export const RoleManagementScreen: React.FC = () => {
     try {
       setLoading(true);
       let rolesData;
+      let orgId: string | null = null;
       
       try {
         // Get organization-specific roles for non-platform admins
         const orgData = await getMyOrganization();
+        orgId = orgData.id;
         rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
-        console.warn('Could not fetch organization, falling back to all roles:', orgError);
-        // Fallback to all roles if organization fetch fails
-        rolesData = await getRolesWithGrants();
+        console.warn('Could not fetch organization:', orgError);
+        // If we can't get organization, don't show any roles
+        setRoles([]);
+        return;
       }
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
-        setRoles(rolesData);
+        // Filter to only show roles that belong to this organization or are relevant to it
+        const filteredRoles = rolesData.filter(role => {
+          // Show roles that belong to this organization
+          if (role.org_id === orgId) {
+            return true;
+          }
+          // Show managed roles that are available to organizations (not platform-only)
+          if (role.is_managed && role.org_id === null) {
+            return true;
+          }
+          return false;
+        });
+        setRoles(filteredRoles);
       } else if (rolesData === null || rolesData === undefined) {
         console.warn('API returned null/undefined roles data');
         setRoles([]);
@@ -107,21 +122,34 @@ export const RoleManagementScreen: React.FC = () => {
     setRefreshing(true);
     try {
       let rolesData;
+      let orgId: string | null = null;
       
       try {
-        // Get organization-specific roles for non-platform admins
         const orgData = await getMyOrganization();
+        orgId = orgData.id;
         rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
-        console.warn('Could not fetch organization, falling back to all roles:', orgError);
-        rolesData = await getRolesWithGrants();
+        console.warn('Could not fetch organization:', orgError);
+        setRoles([]);
+        return;
       }
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
-        setRoles(rolesData);
+        // Filter to only show roles that belong to this organization or are relevant to it
+        const filteredRoles = rolesData.filter(role => {
+          // Show roles that belong to this organization
+          if (role.org_id === orgId) {
+            return true;
+          }
+          // Show managed roles that are available to organizations (not platform-only)
+          if (role.is_managed && role.org_id === null) {
+            return true;
+          }
+          return false;
+        });
+        setRoles(filteredRoles);
       } else {
-        console.warn('API returned non-array roles data:', rolesData);
         setRoles([]);
       }
     } catch (error: any) {

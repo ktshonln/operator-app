@@ -95,19 +95,35 @@ export const UserFormScreen = () => {
     try {
       // Get organization-specific roles for non-platform admins
       let rolesData;
+      let orgId: string | null = null;
+      
       try {
         const orgData = await getMyOrganization();
+        orgId = orgData.id;
         // Use organization ID to filter roles and get grants
         rolesData = await getRolesWithGrants(orgData.id);
       } catch (orgError) {
-        console.warn('Could not fetch organization, falling back to all roles:', orgError);
-        // Fallback to all roles if organization fetch fails
-        rolesData = await getRolesWithGrants();
+        console.warn('Could not fetch organization:', orgError);
+        // If we can't get organization, don't show any roles
+        setRoles([]);
+        return;
       }
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
-        setRoles(rolesData);
+        // Filter to only show roles that belong to this organization or are relevant to it
+        const filteredRoles = rolesData.filter(role => {
+          // Show roles that belong to this organization
+          if (role.org_id === orgId) {
+            return true;
+          }
+          // Show managed roles that are available to organizations (not platform-only)
+          if (role.is_managed && role.org_id === null) {
+            return true;
+          }
+          return false;
+        });
+        setRoles(filteredRoles);
       } else if (rolesData === null || rolesData === undefined) {
         console.warn('API returned null/undefined roles data');
         setRoles([]);

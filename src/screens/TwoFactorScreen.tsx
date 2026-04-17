@@ -12,32 +12,73 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { Header } from '../components/Header';
-import { verify2FA } from '../api/client';
+import { verify2FA, initiate2FA, resendOTPEnhanced } from '../api/client';
 import { authStore } from '../api/authStore';
 
 export const TwoFactorScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const route = useRoute();
   const { t } = useTranslation();
+  
+  const { userId: paramUserId, identifier } = (route.params as any) || {};
   
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [initiating, setInitiating] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
     loadUser();
+    initiate2FAFlow();
   }, []);
+
+  // Timer for resend functionality
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => {
+        setResendTimer(resendTimer - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [resendTimer]);
 
   const loadUser = async () => {
     const userData = await authStore.getUser();
     setUser(userData);
+  };
+
+  const initiate2FAFlow = async () => {
+    const userData = await authStore.getUser();
+    const userId = paramUserId || userData?.id;
+
+    if (!userId) {
+      Alert.alert('Error', 'User information not found. Please try again.');
+      return;
+    }
+
+    setInitiating(true);
+    try {
+      await initiate2FA(userId);
+      console.log('2FA flow initiated successfully');
+    } catch (error: any) {
+      console.error('Failed to initiate 2FA:', error);
+      Alert.alert('Error', 'Failed to start 2FA verification. Please try again.');
+    } finally {
+      setInitiating(false);
+    }
   };
 
   const handleChange = (text: string, index: number) => {
@@ -60,13 +101,15 @@ export const TwoFactorScreen: React.FC = () => {
   };
 
   const handleVerify = async () => {
-    const deviceToken = code.join('');
-    if (deviceToken.length < 6) {
+    const otpCode = code.join('');
+    if (otpCode.length < 6) {
       Alert.alert(t('common.error'), 'Please enter the complete 6-digit code');
       return;
     }
 
-    if (!user?.id) {
+    const userId = paramUserId || user?.id;
+
+    if (!userId) {
       Alert.alert(t('common.error'), 'User information not found. Please try again.');
       return;
     }
@@ -74,7 +117,7 @@ export const TwoFactorScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await verify2FA(user.id, deviceToken);
+      const response = await verify2FA(userId, otpCode);
       setLoading(false);
       
       Alert.alert(
@@ -96,11 +139,36 @@ export const TwoFactorScreen: React.FC = () => {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+    
+    const userId = paramUserId || user?.id;
+    if (!userId) {
+      Alert.alert('Error', 'User information not found');
+      return;
+    }
+
+    setResendLoading(true);
+    try {
+      await resendOTPEnhanced(userId, '2fa', 'phone');
+      Alert.alert('Success', 'Verification code has been resent');
+      setCode(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+      setResendTimer(60);
+      setCanResend(false);
+    } catch (error: any) {
+      console.error('Failed to resend 2FA OTP:', error);
+      Alert.alert('Error', error.message || 'Failed to resend verification code');
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       <Header 
-        title="Device Verification" 
+        title="Two-Factor Auth" 
         showBack={true} 
         onBack={() => navigation.goBack()} 
       />
@@ -113,13 +181,17 @@ export const TwoFactorScreen: React.FC = () => {
           <View style={styles.content}>
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <Icon name="shield" size={40} color={COLORS.brand} />
+                {initiating ? (
+                  <ActivityIndicator size="large" color={COLORS.brand} />
+                ) : (
+                  <Icon name="shield" size={40} color={COLORS.brand} />
+                )}
               </View>
               <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
-                Verify This Device
+                Two-Factor Auth
               </Typography>
               <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-                Enter the 6-digit verification code to add this device to your trusted devices list
+                {initiating ? 'Initiating verification...' : `Enter the 6-digit verification code sent to ${identifier || 'your device'}`}
               </Typography>
             </View>
 
@@ -148,12 +220,35 @@ export const TwoFactorScreen: React.FC = () => {
               ) : (
                 <>
                   <Typography color={COLORS.white} variant="body" style={styles.buttonText}>
-                    Verify Device
+                    Verify & Enable
                   </Typography>
                   <View style={styles.buttonIcon}>
                     <Icon name="check" size={18} color={COLORS.white} />
                   </View>
                 </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.resendAction, (!canResend || resendLoading) && { opacity: 0.5 }]} 
+              onPress={handleResendOTP}
+              disabled={!canResend || resendLoading}
+            >
+              {resendLoading ? (
+                <ActivityIndicator size="small" color={COLORS.brand} />
+              ) : (
+                <View style={styles.resendTextWrapper}>
+                  <Typography variant="caption" color={COLORS.textSecondary}>
+                    Didn't receive code?{' '}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    weight="bold"
+                    color={canResend ? COLORS.brand : COLORS.textSecondary} 
+                  >
+                    {canResend ? 'Resend' : `Resend in ${resendTimer}s`}
+                  </Typography>
+                </View>
               )}
             </TouchableOpacity>
 
@@ -256,6 +351,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 12,
+  },
+  resendAction: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignSelf: 'center',
+    marginTop: 20,
+  },
+  resendTextWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   helpContainer: {
     marginTop: 30,

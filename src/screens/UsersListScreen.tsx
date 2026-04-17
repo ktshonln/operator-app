@@ -26,9 +26,10 @@ export const UsersListScreen = () => {
         const orgData = await getMyOrganization();
         usersData = await getUsers(orgData.id);
       } catch (orgError) {
-        console.warn('Could not fetch organization, falling back to all users:', orgError);
-        // Fallback to all users if organization fetch fails
-        usersData = await getUsers();
+        console.warn('Could not fetch organization:', orgError);
+        // If we can't get organization, don't show any users
+        setUsers([]);
+        return;
       }
       
       // Ensure usersData is an array
@@ -56,8 +57,9 @@ export const UsersListScreen = () => {
         const orgData = await getMyOrganization();
         usersData = await getUsers(orgData.id);
       } catch (orgError) {
-        console.warn('Could not fetch organization, falling back to all users:', orgError);
-        usersData = await getUsers();
+        console.warn('Could not fetch organization:', orgError);
+        setUsers([]);
+        return;
       }
       
       if (usersData && Array.isArray(usersData)) {

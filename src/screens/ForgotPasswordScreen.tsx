@@ -24,8 +24,8 @@ import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
 import { Alert } from 'react-native';
 
-const { width } = Dimensions.get('window');
 const LOGO = require('../assets/images/new.png');
+const { width } = Dimensions.get('window');
 
 export const ForgotPasswordScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
@@ -33,6 +33,7 @@ export const ForgotPasswordScreen: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   // Animation values for entry
@@ -63,10 +64,22 @@ export const ForgotPasswordScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      await apiClient('/auth/forgot-password', {
+      const response = await apiClient('/auth/forgot-password', {
         method: 'POST',
         body: { identifier },
       });
+      
+      console.log('Forgot password response:', response);
+      
+      // Extract user_id from response if available
+      if (response && response.user_id) {
+        setUserId(response.user_id);
+        console.log('Found user_id in response:', response.user_id);
+      } else {
+        console.warn('No user_id found in forgot password response - will use legacy OTP resend');
+        // Note: Backend should include user_id in response for enhanced OTP resend
+        // For now, we'll rely on the fallback mechanism in OTP screen
+      }
       
       setLoading(false);
       setIsSuccess(true);
@@ -81,11 +94,16 @@ export const ForgotPasswordScreen: React.FC = () => {
   useEffect(() => {
     if (isSuccess) {
       const timer = setTimeout(() => {
-        navigation.navigate('OTP', { identifier: identifier });
+        navigation.navigate('OTP', { 
+          identifier: identifier,
+          userId: userId,
+          purpose: 'password_reset',
+          channel: 'phone'
+        });
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccess, navigation, identifier]);
+  }, [isSuccess, navigation, identifier, userId]);
 
   return (
     <SafeAreaView style={styles.container}>

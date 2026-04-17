@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Platform } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, TextInput, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Typography } from './Typography';
 import { COLORS } from '../theme/colors';
@@ -14,9 +15,20 @@ interface HeaderProps {
   rightIcon?: IconName;
   onRightPress?: () => void;
   onSearch?: (query: string) => void;
+  withBanner?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightElement, rightIcon, onRightPress, onSearch }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  title, 
+  showBack, 
+  onBack, 
+  rightElement, 
+  rightIcon, 
+  onRightPress, 
+  onSearch,
+  withBanner = true
+}) => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
@@ -36,9 +48,13 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
   };
 
   return (
-    <View style={styles.outerContainer}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
+    <View style={[styles.outerContainer, { paddingTop: Platform.OS === 'android' ? 12 : Math.max((insets.top || 0) * 0.7, 10) }]}>
+      {withBanner && (
+        <View style={styles.bannerDecoration}>
+          <View style={styles.bannerCircle} />
+        </View>
+      )}
+      <View style={styles.container}>
           {isSearching ? (
             <View style={styles.searchContainer}>
               <TouchableOpacity onPress={toggleSearch} style={styles.backButton}>
@@ -107,7 +123,6 @@ export const Header: React.FC<HeaderProps> = ({ title, showBack, onBack, rightEl
             </>
           )}
         </View>
-      </SafeAreaView>
     </View>
   );
 };
@@ -121,11 +136,33 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
+    position: 'relative',
   },
-  safeArea: {},
+  bannerDecoration: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    backgroundColor: COLORS.brand + '05',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    zIndex: -1,
+    overflow: 'hidden',
+  },
+  bannerCircle: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: COLORS.brand + '08',
+  },
   container: {
-    height: 64,
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

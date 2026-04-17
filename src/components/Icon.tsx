@@ -30,6 +30,7 @@ import {
   LogOut,
   Globe,
   Shield,
+  ShieldCheck,
   AlertCircle,
   Info,
   CreditCard,
@@ -73,6 +74,7 @@ export type IconName =
   | 'logout'
   | 'globe'
   | 'shield'
+  | 'shield-check'
   | 'alert'
   | 'info'
   | 'card'
@@ -121,6 +123,7 @@ const iconMap = {
   'logout': LogOut,
   'globe': Globe,
   'shield': Shield,
+  'shield-check': ShieldCheck,
   'alert': AlertCircle,
   'info': Info,
   'card': CreditCard,

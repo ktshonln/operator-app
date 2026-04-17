@@ -20,9 +20,8 @@ import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
-import { apiClient, resendOTP } from '../api/client';
+import { apiClient, resendOTP, resendOTPEnhanced } from '../api/client';
 import { Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -31,7 +30,12 @@ export const OTPScreen: React.FC = () => {
   const route = useRoute();
   const { t } = useTranslation();
   
-  const { identifier } = route.params as { identifier?: string };
+  const { identifier, userId, purpose, channel } = route.params as { 
+    identifier?: string;
+    userId?: string;
+    purpose?: string;
+    channel?: string;
+  };
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -108,11 +112,24 @@ export const OTPScreen: React.FC = () => {
   };
 
   const handleResendOTP = async () => {
-    if (!canResend || !identifier) return;
+    if (!canResend) return;
+    
+    console.log('Resending OTP with params:', { userId, purpose, channel, identifier });
     
     setResendLoading(true);
     try {
-      await resendOTP(identifier);
+      // Use enhanced resend OTP if we have userId, purpose, and channel
+      if (userId && purpose && channel) {
+        console.log('Using enhanced resend OTP');
+        await resendOTPEnhanced(userId, purpose, channel);
+      } else if (identifier) {
+        console.log('Using legacy resend OTP');
+        // Fallback to original resend OTP for backward compatibility
+        await resendOTP(identifier);
+      } else {
+        throw new Error('Missing required parameters for OTP resend');
+      }
+      
       Alert.alert(t('common.success'), 'OTP has been resent successfully');
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();

@@ -22,10 +22,24 @@
         "foregroundImage": "./src/assets/images/new.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "online.katisha.operator"
+      "package": "online.katisha.operator",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "allowBackup": false,
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./src/assets/images/new.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e012a834-8390-47e9-8127-2726c33f5885"
+      }
     }
   }
 }
