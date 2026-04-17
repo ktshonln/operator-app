@@ -12,7 +12,7 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getUserPermissions } from '../api/client';
+import { getUserPermissions, getUserPermissionsDetailed } from '../api/client';
 import { Permission } from '../types/role';
 
 export const UserPermissionsScreen: React.FC = () => {
@@ -29,8 +29,17 @@ export const UserPermissionsScreen: React.FC = () => {
   const fetchUserPermissions = async () => {
     setLoading(true);
     try {
-      const userPermissions = await getUserPermissions();
+      // Try the primary method first
+      let userPermissions = await getUserPermissions();
+      
+      // If no permissions found, try the detailed method
+      if (userPermissions.length === 0) {
+        console.log('No permissions from primary method, trying detailed method...');
+        userPermissions = await getUserPermissionsDetailed();
+      }
+      
       setPermissions(userPermissions);
+      console.log(`Final result: Loaded ${userPermissions.length} user permissions`);
     } catch (error: any) {
       console.error('Failed to fetch user permissions:', error);
       setPermissions([]);

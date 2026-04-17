@@ -193,26 +193,50 @@ export const ProfileScreen: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
+      // Only update fields that don't require login channel change
+      const updateData: any = {
+        first_name: firstName,
+        last_name: lastName,
+      };
+      
+      // Check if user is trying to change email or phone
+      const originalEmail = organization ? '' : email; // Get original from user data
+      const originalPhone = phoneNumber;
+      
+      // Don't include email and phone in profile update as they require login channel change
+      console.log('Updating profile with safe fields only:', updateData);
+      
       await apiClient('/users/me', {
         method: 'PATCH',
-        body: {
-          first_name: firstName,
-          last_name: lastName,
-          phone_number: phoneNumber,
-          email: email,
-        },
+        body: updateData,
       });
 
       setLoading(false);
       Alert.alert(
         t('profile.title'),
-        t('profile.updateSuccess'),
+        'Profile updated successfully! To change your email or phone number, please use the Login Channel option in Settings.',
         [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
       );
     } catch (error: any) {
       setLoading(false);
       console.error('Update profile error:', error);
-      Alert.alert(t('common.error'), error.message || t('profile.errorUpdate'));
+      
+      // Handle the specific login channel change required error
+      if (error.data && error.data.error && error.data.error.code === 'LOGIN_CHANNEL_CHANGE_REQUIRED') {
+        Alert.alert(
+          'Login Channel Change Required',
+          'To update your email or phone number, please use the Login Channel option in Settings for security verification.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Go to Login Channel', 
+              onPress: () => navigation.navigate('LoginChannel')
+            }
+          ]
+        );
+      } else {
+        Alert.alert(t('common.error'), error.message || t('profile.errorUpdate'));
+      }
     }
   };
 
@@ -301,30 +325,56 @@ export const ProfileScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                {t('profile.phoneNumber')}
-              </Typography>
+              <View style={styles.labelRow}>
+                <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
+                  {t('profile.phoneNumber')}
+                </Typography>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('LoginChannel')}
+                  style={styles.changeChannelButton}
+                >
+                  <Typography variant="caption" color={COLORS.brand} style={styles.changeChannelText}>
+                    Change via Login Channel
+                  </Typography>
+                </TouchableOpacity>
+              </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.readOnlyInput]}
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
                 placeholder={t('profile.phoneNumber')}
                 keyboardType="phone-pad"
+                editable={false}
               />
+              <Typography variant="caption" color={COLORS.textSecondary} style={styles.helperText}>
+                To change your phone number, use Login Channel in Settings for security verification
+              </Typography>
             </View>
 
             <View style={styles.inputGroup}>
-              <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
-                {t('profile.email')}
-              </Typography>
+              <View style={styles.labelRow}>
+                <Typography variant="caption" color={COLORS.textSecondary} style={styles.label}>
+                  {t('profile.email')}
+                </Typography>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('LoginChannel')}
+                  style={styles.changeChannelButton}
+                >
+                  <Typography variant="caption" color={COLORS.brand} style={styles.changeChannelText}>
+                    Change via Login Channel
+                  </Typography>
+                </TouchableOpacity>
+              </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.readOnlyInput]}
                 value={email}
-                onChangeText={setEmail}
                 placeholder={t('profile.email')}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={false}
               />
+              <Typography variant="caption" color={COLORS.textSecondary} style={styles.helperText}>
+                To change your email address, use Login Channel in Settings for security verification
+              </Typography>
             </View>
 
             {organization && (
@@ -455,6 +505,20 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  changeChannelButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  changeChannelText: {
+    fontWeight: '600',
+    fontSize: 12,
+  },
   input: {
     backgroundColor: '#F7FAFC',
     height: 52,
@@ -464,6 +528,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  readOnlyInput: {
+    backgroundColor: '#F0F0F0',
+    color: COLORS.textSecondary,
+  },
+  helperText: {
+    marginTop: 4,
+    fontSize: 11,
+    fontStyle: 'italic',
   },
   saveButton: {
     backgroundColor: COLORS.brand,

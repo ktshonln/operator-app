@@ -85,21 +85,89 @@ export const OrganizationScreen: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      const updateData = {
+      // Try with just the name first (most basic update)
+      const basicUpdateData = {
         name: editData.name,
-        contact_email: editData.contact_email,
-        contact_phone: editData.contact_phone,
-        address: editData.address,
-        tin: editData.tin,
-        license_number: editData.license_number,
       };
       
+      console.log('Attempting basic organization update with:', basicUpdateData);
+      
+      try {
+        await updateOrganization(basicUpdateData);
+        setIsEditing(false);
+        Alert.alert('Success', 'Organization name updated successfully');
+        return;
+      } catch (basicError) {
+        console.log('Basic update failed, trying with more fields...');
+      }
+      
+      // If basic update fails, try with more fields but filter out invalid values
+      const updateData: any = {
+        name: editData.name,
+      };
+      
+      // Only include valid, non-placeholder values
+      if (editData.contact_email && 
+          editData.contact_email !== 'string' && 
+          editData.contact_email.includes('@')) {
+        updateData.contact_email = editData.contact_email;
+      }
+      
+      if (editData.contact_phone && 
+          editData.contact_phone !== 'string' && 
+          editData.contact_phone.length > 5) {
+        updateData.contact_phone = editData.contact_phone;
+      }
+      
+      if (editData.address && 
+          editData.address !== 'string' && 
+          editData.address.length > 2) {
+        updateData.address = editData.address;
+      }
+      
+      // Skip TIN and license if they look like placeholders
+      if (editData.tin && 
+          editData.tin !== 'string' && 
+          editData.tin !== organization?.tin &&
+          editData.tin.length > 2) {
+        updateData.tin = editData.tin;
+      }
+      
+      if (editData.license_number && 
+          editData.license_number !== 'string' && 
+          editData.license_number !== organization?.license_number &&
+          editData.license_number.length > 2) {
+        updateData.license_number = editData.license_number;
+      }
+      
+      console.log('Updating organization with filtered data:', updateData);
       await updateOrganization(updateData);
       setIsEditing(false);
       Alert.alert('Success', 'Organization updated successfully');
     } catch (error: any) {
       console.error('Update organization error details:', error);
-      Alert.alert('Error', error.message || 'Failed to update organization');
+      
+      let errorMessage = 'Failed to update organization';
+      
+      // Extract detailed validation errors
+      if (error.data && error.data.error && error.data.error.details) {
+        console.log('Validation error details:', error.data.error.details);
+        
+        if (Array.isArray(error.data.error.details)) {
+          const validationErrors = error.data.error.details.map((detail: any) => {
+            if (typeof detail === 'string') return detail;
+            if (detail.message) return detail.message;
+            if (detail.field && detail.error) return `${detail.field}: ${detail.error}`;
+            return JSON.stringify(detail);
+          }).join('\n');
+          
+          errorMessage = `Validation errors:\n${validationErrors}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -446,8 +514,8 @@ const styles = StyleSheet.create({
 
   profileInfoArea: {
     alignItems: 'center',
-    marginTop: -40,
-    paddingBottom: 24,
+    marginTop: 10,
+    paddingBottom: 0,
   },
   logoWrapper: {
     width: 110,
@@ -526,8 +594,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   mainContentArea: {
-    padding: 20,
-    marginTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    marginTop: 24,
   },
   infoCard: {
     backgroundColor: '#FFFFFF',
@@ -681,4 +750,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-});
+});

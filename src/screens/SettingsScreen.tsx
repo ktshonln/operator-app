@@ -317,6 +317,11 @@ export const SettingsScreen: React.FC = () => {
           onPress={() => navigation.navigate('ChangePassword')}
         />
         <SettingItem 
+          title="Login Channel" 
+          icon="mail" 
+          onPress={() => navigation.navigate('LoginChannel')}
+        />
+        <SettingItem 
           title="Device Verification" 
           icon="shield" 
           onPress={handleStart2FA}

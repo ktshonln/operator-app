@@ -26,7 +26,7 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     ...API_CONFIG.DEFAULT_HEADERS,
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(token && endpoint !== '/auth/refresh' ? { 'Authorization': `Bearer ${token}` } : {}),
     ...headers,
   };
 
@@ -330,6 +330,65 @@ export const logoutAll = async () => {
   });
 };
 
+// Login Channel Management API functions
+export const initiateLoginChannelChange = async (channel: 'email' | 'phone', identifier?: string) => {
+  const body: any = { channel };
+  
+  // If switching to a different channel and providing new identifier
+  if (identifier) {
+    body.identifier = identifier;
+  }
+  
+  console.log('Initiating login channel change with body:', body);
+  
+  try {
+    const response = await apiClient('/users/me/login-channel', {
+      method: 'POST',
+      body,
+    });
+    
+    console.log('Login channel initiate response:', response);
+    return response;
+  } catch (error: any) {
+    console.error('Initiate login channel error:', error);
+    
+    // Log detailed validation errors if available
+    if (error.data && error.data.error && error.data.error.details) {
+      console.log('Initiate validation errors:', JSON.stringify(error.data.error.details, null, 2));
+    }
+    
+    throw error;
+  }
+};
+
+export const confirmLoginChannelChange = async (otp: string, channel: 'email' | 'phone') => {
+  console.log('Confirming login channel change with OTP:', otp, 'Channel:', channel);
+  
+  // Based on the validation error, the API only accepts otp and channel (no identifier)
+  const requestBody = {
+    otp: otp,
+    channel: channel
+  };
+  
+  console.log('Request body for confirm:', requestBody);
+  
+  try {
+    return await apiClient('/users/me/login-channel/confirm', {
+      method: 'POST',
+      body: requestBody,
+    });
+  } catch (error: any) {
+    console.error('Confirm login channel error details:', error);
+    
+    // If it's a validation error, log the details for debugging
+    if (error.data && error.data.error && error.data.error.details) {
+      console.log('Detailed validation errors:', JSON.stringify(error.data.error.details, null, 2));
+    }
+    
+    throw error;
+  }
+};
+
 // Role Management API functions
 export const createRole = async (roleData: CreateRoleRequest): Promise<Role> => {
   console.log('API Client - Creating role with data:', JSON.stringify(roleData, null, 2));
@@ -427,22 +486,132 @@ export const getPermissions = async (): Promise<Permission[]> => {
 
 // Get user's permissions
 export const getUserPermissions = async (): Promise<Permission[]> => {
-  const response = await apiClient('/users/me/permissions', {
-    method: 'GET',
-  });
-  
-  // Handle paginated response
-  if (response && response.data && Array.isArray(response.data)) {
-    return response.data;
+  try {
+    // Get current user with their permissions
+    const user = await apiClient('/users/me', {
+      method: 'GET',
+    });
+    
+    console.log('User data structure:', JSON.stringify(user, null, 2));
+    
+    if (!user) {
+      console.warn('No user data found');
+      return [];
+    }
+    
+    // Check if user has permissions directly
+    if (user.permissions && Array.isArray(user.permissions)) {
+      console.log(`Found ${user.permissions.length} permissions directly in user object`);
+      
+      // Get all available permissions to match against user permissions
+      const allPermissions = await getPermissions();
+      console.log(`Found ${allPermissions.length} total permissions from /permissions endpoint`);
+      
+      // Convert user permissions to match Permission interface
+      const userPermissions: Permission[] = [];
+      
+      for (const userPerm of user.permissions) {
+        // User permissions have format: {action: ["manage"], subject: ["User"], conditions: {...}}
+        // We need to match this to permissions with codes like "user:manage:org"
+        
+        if (userPerm.action && userPerm.subject && Array.isArray(userPerm.action) && Array.isArray(userPerm.subject)) {
+          for (const action of userPerm.action) {
+            for (const subject of userPerm.subject) {
+              // Try to find matching permission by constructing expected code patterns
+              const possibleCodes = [
+                `${subject.toLowerCase()}:${action.toLowerCase()}`,
+                `${subject.toLowerCase()}:${action.toLowerCase()}:org`,
+                `${subject.toLowerCase()}:${action.toLowerCase()}:platform`,
+                `${subject.toLowerCase()}:${action.toLowerCase()}:own`
+              ];
+              
+              for (const code of possibleCodes) {
+                const matchingPermission = allPermissions.find(p => p.code === code);
+                if (matchingPermission && !userPermissions.find(up => up.id === matchingPermission.id)) {
+                  userPermissions.push(matchingPermission);
+                  console.log(`Matched permission: ${matchingPermission.code} (${matchingPermission.display_name})`);
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`Converted ${userPermissions.length} permissions for user`);
+      return userPermissions;
+    }
+    
+    // Fallback: if no direct permissions, try role-based approach
+    if (user.roles && Array.isArray(user.roles)) {
+      console.log('No direct permissions found, trying role-based approach');
+      console.log('User roles:', user.roles);
+      
+      // Since roles are just strings, we can't get grants from them
+      // This would require a different API endpoint like /users/me/roles with details
+      console.warn('Role-based permission fetching not supported with current API structure');
+      return [];
+    }
+    
+    console.warn('No permissions or roles found for user');
+    return [];
+  } catch (error: any) {
+    console.error('Failed to fetch user permissions:', error);
+    return [];
   }
-  
-  // If it's already an array, return as is
-  if (Array.isArray(response)) {
-    return response;
+};
+
+export const getUserPermissionsDetailed = async (): Promise<Permission[]> => {
+  try {
+    const user = await apiClient('/users/me', { method: 'GET' });
+    
+    if (!user) {
+      console.log('No user data found for detailed method');
+      return [];
+    }
+    
+    console.log('Detailed method - checking user permissions directly');
+    
+    // If user has permissions array, convert them to Permission objects
+    if (user.permissions && Array.isArray(user.permissions)) {
+      const allPermissions = await getPermissions();
+      const userPermissions: Permission[] = [];
+      
+      // Create a more comprehensive mapping
+      for (const userPerm of user.permissions) {
+        if (userPerm.action && userPerm.subject) {
+          const actions = Array.isArray(userPerm.action) ? userPerm.action : [userPerm.action];
+          const subjects = Array.isArray(userPerm.subject) ? userPerm.subject : [userPerm.subject];
+          
+          for (const action of actions) {
+            for (const subject of subjects) {
+              // Find all permissions that match this action/subject combination
+              const matchingPermissions = allPermissions.filter(p => {
+                const [permSubject, permAction] = p.code.split(':');
+                return permSubject?.toLowerCase() === subject.toLowerCase() && 
+                       permAction?.toLowerCase() === action.toLowerCase();
+              });
+              
+              for (const perm of matchingPermissions) {
+                if (!userPermissions.find(up => up.id === perm.id)) {
+                  userPermissions.push(perm);
+                  console.log(`Detailed method matched: ${perm.code}`);
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`Detailed method found ${userPermissions.length} permissions`);
+      return userPermissions;
+    }
+    
+    console.log('No permissions found in user object');
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch detailed user permissions:', error);
+    return [];
   }
-  
-  // Fallback
-  return [];
 };
 
 // Role Grant Management API functions

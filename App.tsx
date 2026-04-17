@@ -22,6 +22,7 @@ import { OrganizationScreen } from './src/screens/OrganizationScreen';
 import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
 import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
+import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
 import { authStore } from './src/api/authStore';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -104,6 +105,7 @@ function App() {
           <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
           <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
           <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
+          <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
