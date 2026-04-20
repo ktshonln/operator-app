@@ -20,6 +20,8 @@ export type RootStackParamList = {
   LoginChannel: undefined;
   AllOrganizations: undefined;
   AllUsers: undefined;
+  Invitations: undefined;
+  EditInvitation: { invitation: any };
 };
 
 declare global {

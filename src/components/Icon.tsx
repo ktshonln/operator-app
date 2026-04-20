@@ -41,6 +41,8 @@ import {
   Ticket,
   DollarSign,
   RefreshCw,
+  Clock,
+  Ban,
 } from 'lucide-react-native';
 import { COLORS } from '../theme/colors';
 
@@ -84,7 +86,10 @@ export type IconName =
   | 'send'
   | 'ticket'
   | 'dollar-sign'
-  | 'refresh-cw';
+  | 'refresh-cw'
+  | 'clock'
+  | 'x-circle'
+  | 'ban';
 
 interface IconProps {
   name: IconName;
@@ -134,6 +139,9 @@ const iconMap = {
   'ticket': Ticket,
   'dollar-sign': DollarSign,
   'refresh-cw': RefreshCw,
+  'clock': Clock,
+  'x-circle': XCircle,
+  'ban': Ban,
 };
 
 export const Icon: React.FC<IconProps> = ({ 

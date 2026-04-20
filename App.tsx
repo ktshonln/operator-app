@@ -25,6 +25,8 @@ import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
 import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
 import { AllOrganizationsScreen } from './src/screens/AllOrganizationsScreen';
 import { AllUsersScreen } from './src/screens/AllUsersScreen';
+import { InvitationsScreen } from './src/screens/InvitationsScreen';
+import { EditInvitationScreen } from './src/screens/EditInvitationScreen';
 import { authStore } from './src/api/authStore';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -110,6 +112,8 @@ function App() {
           <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
           <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
           <Stack.Screen name="AllUsers" component={AllUsersScreen} />
+          <Stack.Screen name="Invitations" component={InvitationsScreen} />
+          <Stack.Screen name="EditInvitation" component={EditInvitationScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

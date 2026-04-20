@@ -6,7 +6,7 @@ import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { Icon } from '../components/Icon';
-import { apiClient, logout, logoutAll, resendOTPEnhanced } from '../api/client';
+import { apiClient, logout, logoutAll, initiate2FA, disable2FA } from '../api/client';
 import { API_CONFIG } from '../api/config';
 import { useOrganization } from '../hooks/useOrganization';
 import { usePermissions } from '../hooks/usePermissions';
@@ -182,22 +182,64 @@ export const SettingsScreen: React.FC = () => {
       return;
     }
     
+    // Check if 2FA is already enabled
+    if (user.two_factor_enabled) {
+      Alert.alert(
+        'Two-Factor Authentication', 
+        'Two-Factor Authentication is currently enabled. Would you like to disable it?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Disable 2FA', 
+            style: 'destructive',
+            onPress: handleDisable2FA
+          }
+        ]
+      );
+      return;
+    }
+    
     setSending2FA(true);
     try {
-      // Step 1: Request 2FA OTP
-      // We use 'phone' as default channel, or email if available
-      const channel = user.phone_number ? 'phone' : 'email';
-      await resendOTPEnhanced(user.id, '2fa', channel);
+      // Step 1: Initiate 2FA OTP flow
+      await initiate2FA(user.id);
       
       // Step 2: Navigate to TwoFactor screen
       navigation.navigate('TwoFactor', { 
         userId: user.id,
         identifier: user.phone_number || user.email,
-        channel: channel
+        channel: user.phone_number ? 'phone' : 'email'
       });
     } catch (error: any) {
-      console.error('Failed to start 2FA:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to send verification code');
+      console.error('Failed to start 2FA enablement:', error);
+      Alert.alert(t('common.error'), error.message || 'Failed to send verification code for 2FA setup');
+    } finally {
+      setSending2FA(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!user?.id) return;
+    
+    setSending2FA(true);
+    try {
+      await disable2FA(user.id);
+      
+      // Update user's two_factor_enabled status in auth store
+      const currentUser = await authStore.getUser();
+      if (currentUser) {
+        const updatedUser = { ...currentUser, two_factor_enabled: false };
+        await authStore.saveUser(updatedUser);
+        setUser(updatedUser);
+      }
+      
+      Alert.alert(
+        t('common.success'), 
+        'Two-Factor Authentication has been disabled for your account.'
+      );
+    } catch (error: any) {
+      console.error('Failed to disable 2FA:', error);
+      Alert.alert(t('common.error'), error.message || 'Failed to disable Two-Factor Authentication');
     } finally {
       setSending2FA(false);
     }
@@ -321,6 +363,15 @@ export const SettingsScreen: React.FC = () => {
           />
         )}
         
+        {/* Invitations - Only for users who can manage users */}
+        {canManageUsers && (
+          <SettingItem 
+            title="Pending Invitations"
+            icon="mail" 
+            onPress={() => navigation.navigate('Invitations')}
+          />
+        )}
+        
         {/* Role Management - Only for users who can manage roles */}
         {canManageRoles && (
           <SettingItem 
@@ -348,7 +399,7 @@ export const SettingsScreen: React.FC = () => {
           onPress={() => navigation.navigate('LoginChannel')}
         />
         <SettingItem 
-          title="Two-Factor Authentication" 
+          title={user?.two_factor_enabled ? "Two-Factor Authentication (Enabled)" : "Enable Two-Factor Authentication"} 
           icon="shield" 
           onPress={handleStart2FA}
           loading={sending2FA}

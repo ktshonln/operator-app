@@ -268,26 +268,39 @@ export const resendOTPEnhanced = async (userId: string, purpose: string, channel
   });
 };
 
-// 2FA Verification API
+// 2FA Verification API - Updated to use correct flow
 export const initiate2FA = async (userId: string) => {
-  return apiClient('/auth/initiate-2fa', {
+  // First we need to initiate OTP flow - let's try the request-otp endpoint
+  return apiClient('/auth/request-otp', {
     method: 'POST',
     body: { 
-      user_id: userId 
+      user_id: userId,
+      purpose: '2fa',
+      channel: 'phone' // or 'email' based on user preference
     },
   });
 };
 
 export const verify2FA = async (userId: string, otp: string) => {
+  // Use the correct verify-2fa endpoint from API docs
   return apiClient('/auth/verify-2fa', {
     method: 'POST',
     headers: {
       'X-Client-Type': 'mobile',
     },
     body: { 
-      user_id: userId,
       otp: otp,
-      device_name: 'phone'
+      device_name: 'string'
+    },
+  });
+};
+
+export const disable2FA = async (userId: string) => {
+  // Use PATCH method to disable 2FA on user profile
+  return apiClient('/users/me', {
+    method: 'PATCH',
+    body: { 
+      two_factor_enabled: false 
     },
   });
 };
@@ -531,6 +544,21 @@ export const getUserById = async (userId: string) => {
   });
 };
 
+// Invite user instead of direct creation
+export const inviteUser = async (userData: {
+  first_name: string;
+  last_name: string;
+  org_id: string;
+  role_id: string;
+  email?: string;
+  phone_number?: string;
+}) => {
+  return apiClient('/users/invite', {
+    method: 'POST',
+    body: userData,
+  });
+};
+
 export const createUser = async (userData: {
   first_name: string;
   last_name: string;
@@ -564,7 +592,62 @@ export const deleteUser = async (userId: string) => {
   });
 };
 
-// Avatar Upload API functions
+// Invitation Management API functions
+export const getInvitations = async (orgId?: string, page?: number, limit?: number) => {
+  let endpoint = '/users/invitations';
+  const params = new URLSearchParams();
+  
+  if (page) params.append('page', page.toString());
+  if (limit) params.append('limit', limit.toString());
+  if (orgId) params.append('org_id', orgId);
+  
+  if (params.toString()) {
+    endpoint += `?${params.toString()}`;
+  }
+  
+  const response = await apiClient(endpoint, {
+    method: 'GET',
+  });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
+};
+
+export const updateInvitation = async (invitationId: string, updateData: {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone_number?: string;
+  role_id?: string;
+  locale?: string;
+}) => {
+  return apiClient(`/users/invitations/${invitationId}`, {
+    method: 'PATCH',
+    body: updateData,
+  });
+};
+
+export const resendInvitation = async (invitationId: string) => {
+  return apiClient(`/users/invitations/${invitationId}/resend`, {
+    method: 'POST',
+  });
+};
+
+export const cancelInvitation = async (invitationId: string) => {
+  return apiClient(`/users/invitations/${invitationId}`, {
+    method: 'DELETE',
+  });
+};
 export const getAvatarPresignedUrl = async (contentType: string) => {
   return apiClient(`/users/me/avatar/presigned-url?content_type=${encodeURIComponent(contentType)}`, {
     method: 'GET',

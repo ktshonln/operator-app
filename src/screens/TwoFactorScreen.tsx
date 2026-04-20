@@ -19,7 +19,7 @@ import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { Header } from '../components/Header';
-import { verify2FA, initiate2FA, resendOTPEnhanced } from '../api/client';
+import { verify2FA, initiate2FA, apiClient } from '../api/client';
 import { authStore } from '../api/authStore';
 
 export const TwoFactorScreen: React.FC = () => {
@@ -61,24 +61,8 @@ export const TwoFactorScreen: React.FC = () => {
   };
 
   const initiate2FAFlow = async () => {
-    const userData = await authStore.getUser();
-    const userId = paramUserId || userData?.id;
-
-    if (!userId) {
-      Alert.alert('Error', 'User information not found. Please try again.');
-      return;
-    }
-
-    setInitiating(true);
-    try {
-      await initiate2FA(userId);
-      console.log('2FA flow initiated successfully');
-    } catch (error: any) {
-      console.error('Failed to initiate 2FA:', error);
-      Alert.alert('Error', 'Failed to start 2FA verification. Please try again.');
-    } finally {
-      setInitiating(false);
-    }
+    // No need to initiate here since OTP was already sent from SettingsScreen
+    console.log('2FA verification flow ready - OTP already sent');
   };
 
   const handleChange = (text: string, index: number) => {
@@ -117,12 +101,22 @@ export const TwoFactorScreen: React.FC = () => {
     setLoading(true);
     
     try {
+      // Step 1: Verify the 2FA OTP using the correct endpoint
       const response = await verify2FA(userId, otpCode);
+      
+      // Step 2: Update user's two_factor_enabled status in auth store
+      const currentUser = await authStore.getUser();
+      if (currentUser) {
+        const updatedUser = { ...currentUser, two_factor_enabled: true };
+        await authStore.saveUser(updatedUser);
+        setUser(updatedUser);
+      }
+      
       setLoading(false);
       
       Alert.alert(
         t('common.success'), 
-        'Device verified successfully! Your device is now trusted.',
+        'Two-Factor Authentication has been successfully enabled! Your account is now more secure.',
         [
           {
             text: 'OK',
@@ -135,7 +129,8 @@ export const TwoFactorScreen: React.FC = () => {
       setCode(['', '', '', '', '', '']);
     } catch (error: any) {
       setLoading(false);
-      Alert.alert(t('common.error'), error.message || 'Invalid verification code');
+      console.error('2FA verification error:', error);
+      Alert.alert(t('common.error'), error.message || 'Invalid verification code. Please try again.');
     }
   };
 
@@ -150,14 +145,15 @@ export const TwoFactorScreen: React.FC = () => {
 
     setResendLoading(true);
     try {
-      await resendOTPEnhanced(userId, '2fa', 'phone');
+      // Use the initiate2FA function to resend the OTP
+      await initiate2FA(userId);
       Alert.alert('Success', 'Verification code has been resent');
       setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
       setResendTimer(60);
       setCanResend(false);
     } catch (error: any) {
-      console.error('Failed to resend 2FA OTP:', error);
+      console.error('Failed to resend 2FA code:', error);
       Alert.alert('Error', error.message || 'Failed to resend verification code');
     } finally {
       setResendLoading(false);
@@ -181,17 +177,13 @@ export const TwoFactorScreen: React.FC = () => {
           <View style={styles.content}>
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                {initiating ? (
-                  <ActivityIndicator size="large" color={COLORS.brand} />
-                ) : (
-                  <Icon name="shield" size={40} color={COLORS.brand} />
-                )}
+                <Icon name="shield" size={40} color={COLORS.brand} />
               </View>
               <Typography variant="h2" color={COLORS.text} align="center" style={styles.title}>
                 Two-Factor Auth
               </Typography>
               <Typography variant="body" color={COLORS.textSecondary} align="center" style={styles.description}>
-                {initiating ? 'Initiating verification...' : `Enter the 6-digit verification code sent to ${identifier || 'your device'}`}
+                Enter the 6-digit verification code sent to {identifier || 'your device'} to enable Two-Factor Authentication
               </Typography>
             </View>
 
@@ -255,7 +247,7 @@ export const TwoFactorScreen: React.FC = () => {
             <View style={styles.infoCard}>
               <Icon name="info" size={20} color={COLORS.brand} />
               <Typography variant="caption" color={COLORS.textSecondary} style={styles.infoText}>
-                This verification helps secure your account by confirming this device is trusted.
+                Enabling Two-Factor Authentication adds an extra layer of security to your account by requiring a verification code.
               </Typography>
             </View>
           </View>
