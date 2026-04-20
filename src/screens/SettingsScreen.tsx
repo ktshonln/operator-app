@@ -9,6 +9,7 @@ import { Icon } from '../components/Icon';
 import { apiClient, logout, logoutAll, resendOTPEnhanced } from '../api/client';
 import { API_CONFIG } from '../api/config';
 import { useOrganization } from '../hooks/useOrganization';
+import { usePermissions } from '../hooks/usePermissions';
 import { authStore } from '../api/authStore';
 
 const LANGUAGES = [
@@ -20,7 +21,17 @@ const LANGUAGES = [
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
-  const { organization } = useOrganization();
+  const { organization, isPlatformAdmin: orgIsPlatformAdmin } = useOrganization();
+  const {
+    user: permissionUser,
+    loading: permissionsLoading,
+    canManageUsers,
+    canManageRoles,
+    canViewOrganizations,
+    canManageOrganizations,
+    isPlatformAdmin,
+    isOrgAdmin,
+  } = usePermissions();
   
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -291,26 +302,41 @@ export const SettingsScreen: React.FC = () => {
           icon="person" 
           onPress={() => navigation.navigate('Profile')}
         />
-        <SettingItem 
-          title="Organization" 
-          icon="business" 
-          onPress={() => navigation.navigate('Organization')}
-        />
-        <SettingItem 
-          title="User Management" 
-          icon="users" 
-          onPress={() => navigation.navigate('UsersList')}
-        />
-        <SettingItem 
-          title="Role Management" 
-          icon="shield" 
-          onPress={() => navigation.navigate('RoleManagement')}
-        />
+        
+        {/* Organization - Show if user can view or manage organizations */}
+        {(canViewOrganizations || canManageOrganizations) && (
+          <SettingItem 
+            title={isPlatformAdmin ? t('platformAdmin.allOrganizations') : "Organization"}
+            icon="business" 
+            onPress={() => navigation.navigate(isPlatformAdmin ? 'AllOrganizations' : 'Organization')}
+          />
+        )}
+        
+        {/* User Management - Only for users who can manage users */}
+        {canManageUsers && (
+          <SettingItem 
+            title={isPlatformAdmin ? t('platformAdmin.allUsers') : "User Management"}
+            icon="users" 
+            onPress={() => navigation.navigate(isPlatformAdmin ? 'AllUsers' : 'UsersList')}
+          />
+        )}
+        
+        {/* Role Management - Only for users who can manage roles */}
+        {canManageRoles && (
+          <SettingItem 
+            title={isPlatformAdmin ? t('platformAdmin.allRoles') : "Role Management"}
+            icon="shield" 
+            onPress={() => navigation.navigate('RoleManagement')}
+          />
+        )}
+        
+        {/* My Permissions - Always available */}
         <SettingItem 
           title="My Permissions" 
           icon="shield-check" 
           onPress={() => navigation.navigate('UserPermissions')}
         />
+        
         <SettingItem 
           title={t('settings.security')} 
           icon="lock" 
@@ -322,7 +348,7 @@ export const SettingsScreen: React.FC = () => {
           onPress={() => navigation.navigate('LoginChannel')}
         />
         <SettingItem 
-          title="Device Verification" 
+          title="Two-Factor Authentication" 
           icon="shield" 
           onPress={handleStart2FA}
           loading={sending2FA}
@@ -333,6 +359,37 @@ export const SettingsScreen: React.FC = () => {
           icon="notifications" 
           onPress={() => navigation.navigate('Notifications')}
         />
+
+        {/* Show user role and permissions info */}
+        {permissionUser && (
+          <View style={styles.permissionInfo}>
+            <Typography variant="caption" style={styles.sectionHeader}>Access Level</Typography>
+            <View style={styles.roleCard}>
+              <View style={styles.roleHeader}>
+                <Icon 
+                  name={isPlatformAdmin ? "shield-check" : isOrgAdmin ? "shield" : "person"} 
+                  size={16} 
+                  color={isPlatformAdmin ? "#F59E0B" : isOrgAdmin ? COLORS.brand : COLORS.textSecondary} 
+                />
+                <Typography variant="body" style={styles.roleTitle}>
+                  {isPlatformAdmin ? t('platformAdmin.platformAdministrator') : 
+                   isOrgAdmin ? "Organization Administrator" : 
+                   "Staff Member"}
+                </Typography>
+              </View>
+              <Typography variant="caption" color={COLORS.textSecondary}>
+                {isPlatformAdmin ? t('platformAdmin.fullPlatformAccess') :
+                 isOrgAdmin ? `Organization: ${organization?.name || 'Loading...'}` :
+                 "Limited access"}
+              </Typography>
+              {permissionUser.permissions && (
+                <Typography variant="caption" color={COLORS.textSecondary} style={{ marginTop: 4 }}>
+                  {permissionUser.permissions.length} permission{permissionUser.permissions.length !== 1 ? 's' : ''} granted
+                </Typography>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Language Switcher */}
         <Typography variant="caption" style={styles.sectionHeader}>{t('settings.sectionLanguage')}</Typography>
@@ -455,5 +512,24 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  permissionInfo: {
+    marginTop: 16,
+  },
+  roleCard: {
+    backgroundColor: COLORS.white,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+  },
+  roleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  roleTitle: {
+    marginLeft: 8,
+    fontWeight: '600',
   },
 });

@@ -1,3 +1,5 @@
+import { User } from './user';
+
 export type RootStackParamList = {
   Login: undefined;
   ForgotPassword: undefined;
@@ -9,9 +11,15 @@ export type RootStackParamList = {
   Settings: undefined;
   ChangePassword: undefined;
   UsersList: undefined;
-  UserDetails: { userId?: string };
+  UserDetails: { user: User };
   UserForm: { userId?: string };
   Organization: undefined;
+  TwoFactor: { userId: string; identifier: string; channel: string };
+  RoleManagement: undefined;
+  UserPermissions: undefined;
+  LoginChannel: undefined;
+  AllOrganizations: undefined;
+  AllUsers: undefined;
 };
 
 declare global {

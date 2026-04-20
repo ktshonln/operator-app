@@ -29,12 +29,15 @@ export const UserDetailsScreen: React.FC = () => {
   const [loadingRole, setLoadingRole] = useState(false);
 
   useEffect(() => {
-    if (user.role_id) {
+    // Check if user exists and has role_id before fetching role details
+    if (user && user.role_id) {
       fetchRoleDetails();
     }
-  }, [user.role_id]);
+  }, [user?.role_id]);
 
   const fetchRoleDetails = async () => {
+    if (!user?.role_id) return;
+    
     setLoadingRole(true);
     try {
       const role = await getRoleById(user.role_id);
@@ -48,10 +51,12 @@ export const UserDetailsScreen: React.FC = () => {
   };
 
   const handleEdit = () => {
+    if (!user) return;
     navigation.navigate('UserForm', { userId: user.id });
   };
 
   const handleDelete = () => {
+    if (!user) return;
     Alert.alert(
       'Delete User',
       `Are you sure you want to delete ${user.first_name} ${user.last_name}? This action cannot be undone.`,
@@ -67,6 +72,7 @@ export const UserDetailsScreen: React.FC = () => {
   };
 
   const confirmDelete = async () => {
+    if (!user) return;
     setDeleting(true);
     try {
       await deleteUser(user.id);
@@ -84,6 +90,7 @@ export const UserDetailsScreen: React.FC = () => {
   };
 
   const getInitials = () => {
+    if (!user || !user.first_name || !user.last_name) return 'U';
     return `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase();
   };
 
@@ -100,6 +107,25 @@ export const UserDetailsScreen: React.FC = () => {
       </Typography>
     </View>
   );
+
+  // Handle case where user is undefined
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header 
+          title="User Details"
+          showBack={true}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.centered}>
+          <Icon name="alert" size={48} color={COLORS.textSecondary} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16, textAlign: 'center' }}>
+            User information not found
+          </Typography>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -123,7 +149,9 @@ export const UserDetailsScreen: React.FC = () => {
             {user.first_name} {user.last_name}
           </Typography>
           <Typography variant="body" color={COLORS.brand} style={styles.userRole}>
-            {user.role?.name || 'No Role Assigned'}
+            {user.roles && user.roles.length > 0 
+              ? user.roles.join(', ') 
+              : user.role?.name || 'No Role Assigned'}
           </Typography>
         </View>
 
@@ -144,6 +172,22 @@ export const UserDetailsScreen: React.FC = () => {
               icon="phone"
             />
           )}
+
+          {user.user_type && (
+            <InfoRow 
+              label="User Type"
+              value={user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
+              icon="person"
+            />
+          )}
+
+          {user.status && (
+            <InfoRow 
+              label="Status"
+              value={user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+              icon="info"
+            />
+          )}
         </View>
 
         {/* Role Information */}
@@ -152,7 +196,9 @@ export const UserDetailsScreen: React.FC = () => {
           
           <InfoRow 
             label="Current Role"
-            value={roleDetails?.name || user.role?.name || 'No Role Assigned'}
+            value={user.roles && user.roles.length > 0 
+              ? user.roles.join(', ') 
+              : roleDetails?.name || user.role?.name || 'No Role Assigned'}
             icon="shield"
           />
           
@@ -394,5 +440,11 @@ const styles = StyleSheet.create({
   noPermissionsContainer: {
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
   },
 });

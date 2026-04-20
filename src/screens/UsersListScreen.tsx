@@ -7,29 +7,67 @@ import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { getUsers, getMyOrganization } from '../api/client';
+import { usePermissions } from '../hooks/usePermissions';
 import { User } from '../types/user';
 
 export const UsersListScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const { canManageUsers, isPlatformAdmin, getUserOrgScope, loading: permissionsLoading } = usePermissions();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Check permissions on component mount
+  useEffect(() => {
+    // Don't check permissions if still loading
+    if (permissionsLoading) return;
+    
+    if (!canManageUsers) {
+      Alert.alert(
+        'Access Denied',
+        'You do not have permission to manage users.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+  }, [canManageUsers, permissionsLoading, navigation]);
+
   const fetchUsers = async () => {
+    if (!canManageUsers) {
+      return;
+    }
+
     try {
       setLoading(true);
       let usersData;
       
-      try {
-        // Get organization-specific users for non-platform admins
-        const orgData = await getMyOrganization();
-        usersData = await getUsers(orgData.id);
-      } catch (orgError) {
-        console.warn('Could not fetch organization:', orgError);
-        // If we can't get organization, don't show any users
-        setUsers([]);
-        return;
+      if (isPlatformAdmin) {
+        // Platform admin can see all users
+        usersData = await getUsers();
+      } else {
+        // Organization admin can only see users in their organization
+        const orgScope = getUserOrgScope;
+        if (orgScope) {
+          usersData = await getUsers(orgScope);
+        } else {
+          // Try to get organization-specific users
+          try {
+            const orgData = await getMyOrganization();
+            usersData = await getUsers(orgData.id);
+          } catch (orgError: any) {
+            console.warn('Could not fetch organization:', orgError);
+            
+            // If it's ORG_NOT_FOUND, user might be platform admin
+            if (orgError.data?.error?.code === 'ORG_NOT_FOUND') {
+              // Try to get all users (platform admin)
+              usersData = await getUsers();
+            } else {
+              setUsers([]);
+              return;
+            }
+          }
+        }
       }
       
       // Ensure usersData is an array

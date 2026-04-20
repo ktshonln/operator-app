@@ -12,78 +12,81 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getUserPermissions, getUserPermissionsDetailed } from '../api/client';
-import { Permission } from '../types/role';
+import { usePermissions } from '../hooks/usePermissions';
+import { formatPermissionForDisplay, UserPermission } from '../utils/permissions';
 
 export const UserPermissionsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    user, 
+    loading, 
+    error, 
+    isPlatformAdmin, 
+    isOrgAdmin,
+    getUserOrgScope 
+  } = usePermissions();
 
-  useEffect(() => {
-    fetchUserPermissions();
-  }, []);
-
-  const fetchUserPermissions = async () => {
-    setLoading(true);
-    try {
-      // Try the primary method first
-      let userPermissions = await getUserPermissions();
-      
-      // If no permissions found, try the detailed method
-      if (userPermissions.length === 0) {
-        console.log('No permissions from primary method, trying detailed method...');
-        userPermissions = await getUserPermissionsDetailed();
-      }
-      
-      setPermissions(userPermissions);
-      console.log(`Final result: Loaded ${userPermissions.length} user permissions`);
-    } catch (error: any) {
-      console.error('Failed to fetch user permissions:', error);
-      setPermissions([]);
-    } finally {
-      setLoading(false);
-    }
+  const renderPermissionItem = (permission: UserPermission, index: number) => {
+    const isManageAll = permission.action.includes('manage') && permission.subject.includes('all');
+    
+    return (
+      <View key={index} style={styles.permissionCard}>
+        <View style={styles.permissionHeader}>
+          <View style={[
+            styles.permissionIcon, 
+            { backgroundColor: isManageAll ? '#FEF3C7' : '#E6F7ED' }
+          ]}>
+            <Icon 
+              name={isManageAll ? "shield-check" : "check"} 
+              size={16} 
+              color={isManageAll ? "#F59E0B" : COLORS.success} 
+            />
+          </View>
+          <View style={styles.permissionInfo}>
+            <Typography variant="body" style={styles.permissionTitle}>
+              {permission.action.join(', ').toUpperCase()} {permission.subject.join(', ').toUpperCase()}
+            </Typography>
+            <Typography variant="caption" color={COLORS.textSecondary} style={styles.permissionDescription}>
+              {formatPermissionForDisplay(permission)}
+            </Typography>
+            
+            {/* Show conditions if they exist */}
+            {permission.conditions && (
+              <View style={styles.conditionsContainer}>
+                {Object.entries(permission.conditions).map(([key, value]) => (
+                  <View key={key} style={styles.conditionTag}>
+                    <Typography variant="caption" style={styles.conditionText}>
+                      {key}: {value === null ? 'platform-wide' : value}
+                    </Typography>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        
+        {/* Show scope indicators */}
+        <View style={styles.permissionScopes}>
+          {permission.action.map(action => (
+            <View key={action} style={styles.scopeTag}>
+              <Typography variant="caption" color={COLORS.brand} style={styles.scopeText}>
+                {action.toUpperCase()}
+              </Typography>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
   };
 
-  const renderPermissionItem = (permission: Permission) => (
-    <View key={permission.id} style={styles.permissionCard}>
-      <View style={styles.permissionHeader}>
-        <View style={styles.permissionIcon}>
-          <Icon name="check" size={16} color={COLORS.success} />
-        </View>
-        <View style={styles.permissionInfo}>
-          <Typography variant="body" style={styles.permissionTitle}>
-            {permission.display_name}
-          </Typography>
-          <Typography variant="caption" color={COLORS.textSecondary} style={styles.permissionDescription}>
-            {permission.description}
-          </Typography>
-          <Typography variant="caption" color={COLORS.brand} style={styles.permissionCode}>
-            {permission.code}
-          </Typography>
-        </View>
-      </View>
-      <View style={styles.permissionScopes}>
-        {permission.scopes.map(scope => (
-          <View key={scope} style={styles.scopeTag}>
-            <Typography variant="caption" color={COLORS.brand} style={styles.scopeText}>
-              {scope.toUpperCase()}
-            </Typography>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
-  const groupedPermissions = permissions.reduce((groups, permission) => {
-    const group = permission.group || 'Other';
-    if (!groups[group]) groups[group] = [];
-    groups[group].push(permission);
+  // Group permissions by subject
+  const groupedPermissions = user?.permissions?.reduce((groups, permission) => {
+    const subjects = permission.subject.join(', ');
+    if (!groups[subjects]) groups[subjects] = [];
+    groups[subjects].push(permission);
     return groups;
-  }, {} as Record<string, Permission[]>);
+  }, {} as Record<string, UserPermission[]>) || {};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,28 +103,57 @@ export const UserPermissionsScreen: React.FC = () => {
             Loading your permissions...
           </Typography>
         </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Icon name="alert" size={48} color="#EF4444" />
+          <Typography variant="body" color="#EF4444" style={{ marginTop: 16, textAlign: 'center' }}>
+            {error}
+          </Typography>
+        </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          {permissions.length > 0 ? (
+          {user && user.permissions && user.permissions.length > 0 ? (
             <>
+              {/* User Role Summary */}
               <View style={styles.summaryCard}>
-                <Typography variant="h2" style={styles.summaryTitle}>
-                  Permission Summary
-                </Typography>
-                <Typography variant="body" color={COLORS.textSecondary}>
-                  You have {permissions.length} permissions across {Object.keys(groupedPermissions).length} categories
-                </Typography>
+                <View style={styles.roleHeader}>
+                  <Icon 
+                    name={isPlatformAdmin ? "shield-check" : isOrgAdmin ? "shield" : "person"} 
+                    size={24} 
+                    color={isPlatformAdmin ? "#F59E0B" : isOrgAdmin ? COLORS.brand : COLORS.textSecondary} 
+                  />
+                  <View style={styles.roleInfo}>
+                    <Typography variant="h2" style={styles.roleTitle}>
+                      {isPlatformAdmin ? "Platform Administrator" : 
+                       isOrgAdmin ? "Organization Administrator" : 
+                       "Staff Member"}
+                    </Typography>
+                    <Typography variant="caption" color={COLORS.textSecondary}>
+                      {user.roles.join(', ')} • {user.permissions.length} permissions
+                    </Typography>
+                  </View>
+                </View>
+                
+                {/* Organization scope */}
+                {getUserOrgScope && (
+                  <View style={styles.scopeInfo}>
+                    <Typography variant="caption" color={COLORS.textSecondary}>
+                      Organization Scope: {getUserOrgScope || 'Platform-wide'}
+                    </Typography>
+                  </View>
+                )}
               </View>
 
-              {Object.entries(groupedPermissions).map(([groupName, groupPermissions]) => (
-                <View key={groupName} style={styles.permissionGroup}>
+              {/* Permissions by subject */}
+              {Object.entries(groupedPermissions).map(([subject, permissions]) => (
+                <View key={subject} style={styles.permissionGroup}>
                   <Typography variant="h2" style={styles.groupTitle}>
-                    {groupName}
+                    {subject} Permissions
                   </Typography>
                   <Typography variant="caption" color={COLORS.textSecondary} style={styles.groupSubtitle}>
-                    {groupPermissions.length} permission{groupPermissions.length !== 1 ? 's' : ''}
+                    {permissions.length} permission{permissions.length !== 1 ? 's' : ''}
                   </Typography>
-                  {groupPermissions.map(renderPermissionItem)}
+                  {permissions.map((permission, index) => renderPermissionItem(permission, index))}
                 </View>
               ))}
             </>
@@ -149,6 +181,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
   content: {
     padding: 16,
   },
@@ -163,9 +201,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  summaryTitle: {
-    marginBottom: 8,
+  roleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  roleInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  roleTitle: {
+    marginBottom: 4,
     color: COLORS.text,
+  },
+  scopeInfo: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
   permissionGroup: {
     marginBottom: 24,
@@ -214,11 +266,24 @@ const styles = StyleSheet.create({
   },
   permissionDescription: {
     lineHeight: 18,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  permissionCode: {
-    fontFamily: 'monospace',
-    fontSize: 12,
+  conditionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  conditionTag: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  conditionText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#92400E',
   },
   permissionScopes: {
     flexDirection: 'row',

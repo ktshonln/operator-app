@@ -31,7 +31,7 @@ const { width } = Dimensions.get('window');
 export const OrganizationScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const { organization, loading, updating, error, refetch, updateOrganization } = useOrganization();
+  const { organization, loading, updating, error, isPlatformAdmin, refetch, updateOrganization } = useOrganization();
   
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -442,6 +442,27 @@ export const OrganizationScreen: React.FC = () => {
                 )}
               </View>
             </View>
+          ) : isPlatformAdmin ? (
+            <View style={styles.centered}>
+              <Icon name="shield-check" size={48} color={COLORS.brand} />
+              <Typography variant="h2" style={{ marginTop: 16, textAlign: 'center', color: COLORS.text }}>
+                {t('platformAdmin.platformAdministrator')}
+              </Typography>
+              <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 8, textAlign: 'center' }}>
+                As a platform administrator, you have access to all organizations but don't belong to a specific one.
+              </Typography>
+              <TouchableOpacity 
+                style={styles.platformAdminButton}
+                onPress={() => {
+                  // Navigate to all organizations management
+                  navigation.navigate('AllOrganizations');
+                }}
+              >
+                <Typography color={COLORS.white} variant="body" style={{ fontWeight: 'bold' }}>
+                  {t('platformAdmin.manageAllOrganizations')}
+                </Typography>
+              </TouchableOpacity>
+            </View>
           ) : (
             <View style={styles.centered}>
               <Icon name="alert" size={48} color={COLORS.textSecondary + '40'} />
@@ -749,5 +770,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  platformAdminButton: {
+    backgroundColor: COLORS.brand,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: COLORS.brand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
 });

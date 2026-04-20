@@ -17,18 +17,20 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getRoleById, updateRole, deleteRole, createRole, addGrantToRole, removeGrantFromRole, getMyOrganization, getRolesWithGrants, getPermissions } from '../api/client';
+import { getRoleById, updateRole, deleteRole, createRole, addGrantToRole, removeGrantFromRole, getMyOrganization, getRolesWithGrants, getPermissions, apiClient } from '../api/client';
+import { usePermissions } from '../hooks/usePermissions';
 import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
 
 export const RoleManagementScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
+  const { isPlatformAdmin, canManageRoles, loading: permissionsLoading } = usePermissions();
   
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [permissionsLoadingState, setPermissionsLoadingState] = useState(true);
   
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -43,12 +45,25 @@ export const RoleManagementScreen: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
   useEffect(() => {
+    // Check permissions before loading data
+    if (permissionsLoading) return;
+    
+    // Platform admins should always have access to role management
+    if (!isPlatformAdmin && !canManageRoles) {
+      Alert.alert(
+        'Access Denied',
+        'You do not have permission to manage roles.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+    
     fetchRoles();
     fetchPermissions();
-  }, []);
+  }, [canManageRoles, isPlatformAdmin, permissionsLoading, navigation]);
 
   const fetchPermissions = async () => {
-    setPermissionsLoading(true);
+    setPermissionsLoadingState(true);
     try {
       const permissionsData = await getPermissions();
       setPermissions(permissionsData);
@@ -57,7 +72,7 @@ export const RoleManagementScreen: React.FC = () => {
       // Don't show error to user, just use empty array
       setPermissions([]);
     } finally {
-      setPermissionsLoading(false);
+      setPermissionsLoadingState(false);
     }
   };
 
@@ -75,33 +90,49 @@ export const RoleManagementScreen: React.FC = () => {
       let rolesData;
       let orgId: string | null = null;
       
-      try {
-        // Get organization-specific roles for non-platform admins
-        const orgData = await getMyOrganization();
-        orgId = orgData.id;
-        rolesData = await getRolesWithGrants(orgData.id);
-      } catch (orgError) {
-        console.warn('Could not fetch organization:', orgError);
-        // If we can't get organization, don't show any roles
-        setRoles([]);
-        return;
+      if (isPlatformAdmin) {
+        // Platform admin can see all roles
+        rolesData = await getRolesWithGrants();
+      } else {
+        // Organization admin - get organization-specific roles
+        try {
+          const orgData = await getMyOrganization();
+          orgId = orgData.id;
+          rolesData = await getRolesWithGrants(orgData.id);
+        } catch (orgError: any) {
+          console.warn('Could not fetch organization:', orgError);
+          
+          // If it's ORG_NOT_FOUND, user might be platform admin
+          if (orgError.data?.error?.code === 'ORG_NOT_FOUND') {
+            // Try to get all roles (platform admin)
+            rolesData = await getRolesWithGrants();
+          } else {
+            setRoles([]);
+            return;
+          }
+        }
       }
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
-        // Filter to only show roles that belong to this organization or are relevant to it
-        const filteredRoles = rolesData.filter(role => {
-          // Show roles that belong to this organization
-          if (role.org_id === orgId) {
-            return true;
-          }
-          // Show managed roles that are available to organizations (not platform-only)
-          if (role.is_managed && role.org_id === null) {
-            return true;
-          }
-          return false;
-        });
-        setRoles(filteredRoles);
+        if (isPlatformAdmin) {
+          // Platform admin sees all roles
+          setRoles(rolesData);
+        } else {
+          // Filter to only show roles that belong to this organization or are relevant to it
+          const filteredRoles = rolesData.filter(role => {
+            // Show roles that belong to this organization
+            if (role.org_id === orgId) {
+              return true;
+            }
+            // Show managed roles that are available to organizations (not platform-only)
+            if (role.is_managed && role.org_id === null) {
+              return true;
+            }
+            return false;
+          });
+          setRoles(filteredRoles);
+        }
       } else if (rolesData === null || rolesData === undefined) {
         console.warn('API returned null/undefined roles data');
         setRoles([]);
@@ -124,31 +155,49 @@ export const RoleManagementScreen: React.FC = () => {
       let rolesData;
       let orgId: string | null = null;
       
-      try {
-        const orgData = await getMyOrganization();
-        orgId = orgData.id;
-        rolesData = await getRolesWithGrants(orgData.id);
-      } catch (orgError) {
-        console.warn('Could not fetch organization:', orgError);
-        setRoles([]);
-        return;
+      if (isPlatformAdmin) {
+        // Platform admin can see all roles
+        rolesData = await getRolesWithGrants();
+      } else {
+        // Organization admin - get organization-specific roles
+        try {
+          const orgData = await getMyOrganization();
+          orgId = orgData.id;
+          rolesData = await getRolesWithGrants(orgData.id);
+        } catch (orgError: any) {
+          console.warn('Could not fetch organization:', orgError);
+          
+          // If it's ORG_NOT_FOUND, user might be platform admin
+          if (orgError.data?.error?.code === 'ORG_NOT_FOUND') {
+            // Try to get all roles (platform admin)
+            rolesData = await getRolesWithGrants();
+          } else {
+            setRoles([]);
+            return;
+          }
+        }
       }
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
-        // Filter to only show roles that belong to this organization or are relevant to it
-        const filteredRoles = rolesData.filter(role => {
-          // Show roles that belong to this organization
-          if (role.org_id === orgId) {
-            return true;
-          }
-          // Show managed roles that are available to organizations (not platform-only)
-          if (role.is_managed && role.org_id === null) {
-            return true;
-          }
-          return false;
-        });
-        setRoles(filteredRoles);
+        if (isPlatformAdmin) {
+          // Platform admin sees all roles
+          setRoles(rolesData);
+        } else {
+          // Filter to only show roles that belong to this organization or are relevant to it
+          const filteredRoles = rolesData.filter(role => {
+            // Show roles that belong to this organization
+            if (role.org_id === orgId) {
+              return true;
+            }
+            // Show managed roles that are available to organizations (not platform-only)
+            if (role.is_managed && role.org_id === null) {
+              return true;
+            }
+            return false;
+          });
+          setRoles(filteredRoles);
+        }
       } else {
         setRoles([]);
       }
@@ -161,7 +210,8 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleManageGrants = (role: Role) => {
-    if (role.is_managed) {
+    // Platform admins can manage all roles, including system roles
+    if (role.is_managed && !isPlatformAdmin) {
       Alert.alert(
         'Cannot Modify Managed Role',
         'This is a system-managed role and cannot be modified. Only custom roles can have their grants changed.',
@@ -174,7 +224,8 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleEditRole = (role: Role) => {
-    if (role.is_managed) {
+    // Platform admins can edit all roles, including system roles
+    if (role.is_managed && !isPlatformAdmin) {
       Alert.alert(
         'Cannot Edit Managed Role',
         'This is a system-managed role and cannot be edited. Only custom roles can be modified.',
@@ -319,7 +370,8 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleDeleteRole = (role: Role) => {
-    if (role.is_managed) {
+    // Platform admins can delete system roles, but show a warning
+    if (role.is_managed && !isPlatformAdmin) {
       Alert.alert(
         'Cannot Delete Managed Role',
         'This is a system-managed role and cannot be deleted. Only custom roles can be removed.',
@@ -328,9 +380,14 @@ export const RoleManagementScreen: React.FC = () => {
       return;
     }
     
+    // Show extra warning for platform admins deleting system roles
+    const warningMessage = role.is_managed 
+      ? `Are you sure you want to delete the SYSTEM role "${role.name}"? This is a managed role and deleting it may affect platform functionality. This action cannot be undone.`
+      : `Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`;
+    
     Alert.alert(
       'Delete Role',
-      `Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`,
+      warningMessage,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -373,15 +430,22 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const renderRoleItem = ({ item }: { item: Role }) => (
-    <View style={[styles.roleCard, item.is_managed && styles.managedRoleCard]}>
+    <View style={[
+      styles.roleCard, 
+      item.is_managed && !isPlatformAdmin && styles.managedRoleCard,
+      item.is_managed && isPlatformAdmin && styles.platformAdminManagedRoleCard
+    ]}>
       <View style={styles.roleHeader}>
         <View style={styles.roleInfo}>
           <View style={styles.roleNameContainer}>
             <Typography variant="body" style={styles.roleName}>{item.name}</Typography>
             {item.is_managed && (
-              <View style={styles.managedBadge}>
+              <View style={[
+                styles.managedBadge,
+                isPlatformAdmin && styles.platformAdminManagedBadge
+              ]}>
                 <Typography variant="caption" color={COLORS.white} style={styles.managedBadgeText}>
-                  SYSTEM
+                  {isPlatformAdmin ? 'SYSTEM (EDITABLE)' : 'SYSTEM'}
                 </Typography>
               </View>
             )}
@@ -394,25 +458,25 @@ export const RoleManagementScreen: React.FC = () => {
         </View>
         <View style={styles.roleActions}>
           <TouchableOpacity 
-            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
+            style={[styles.actionButton, (item.is_managed && !isPlatformAdmin) && styles.disabledActionButton]}
             onPress={() => handleManageGrants(item)}
-            disabled={item.is_managed}
+            disabled={item.is_managed && !isPlatformAdmin}
           >
-            <Icon name="shield" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.brand} />
+            <Icon name="shield" size={18} color={(item.is_managed && !isPlatformAdmin) ? COLORS.textSecondary : COLORS.brand} />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
+            style={[styles.actionButton, (item.is_managed && !isPlatformAdmin) && styles.disabledActionButton]}
             onPress={() => handleEditRole(item)}
-            disabled={item.is_managed}
+            disabled={item.is_managed && !isPlatformAdmin}
           >
-            <Icon name="edit" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.brand} />
+            <Icon name="edit" size={18} color={(item.is_managed && !isPlatformAdmin) ? COLORS.textSecondary : COLORS.brand} />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.actionButton, item.is_managed && styles.disabledActionButton]}
+            style={[styles.actionButton, (item.is_managed && !isPlatformAdmin) && styles.disabledActionButton]}
             onPress={() => handleDeleteRole(item)}
-            disabled={item.is_managed}
+            disabled={item.is_managed && !isPlatformAdmin}
           >
-            <Icon name="trash" size={18} color={item.is_managed ? COLORS.textSecondary : COLORS.error} />
+            <Icon name="trash" size={18} color={(item.is_managed && !isPlatformAdmin) ? COLORS.textSecondary : COLORS.error} />
           </TouchableOpacity>
         </View>
       </View>
@@ -444,7 +508,7 @@ export const RoleManagementScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header 
-        title="Role Management"
+        title={isPlatformAdmin ? t('platformAdmin.allRoles') : "Role Management"}
         showBack={true}
         onBack={() => navigation.goBack()}
       />
@@ -775,6 +839,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E9ECEF',
   },
+  platformAdminManagedRoleCard: {
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1,
+    borderColor: '#FFB74D',
+  },
   roleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -799,6 +868,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
+  },
+  platformAdminManagedBadge: {
+    backgroundColor: '#FF9800',
   },
   managedBadgeText: {
     fontSize: 10,

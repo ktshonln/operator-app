@@ -23,6 +23,8 @@ import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
 import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
 import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
+import { AllOrganizationsScreen } from './src/screens/AllOrganizationsScreen';
+import { AllUsersScreen } from './src/screens/AllUsersScreen';
 import { authStore } from './src/api/authStore';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -106,6 +108,8 @@ function App() {
           <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
           <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
           <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
+          <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
+          <Stack.Screen name="AllUsers" component={AllUsersScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

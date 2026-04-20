@@ -93,11 +93,20 @@ export const ProfileScreen: React.FC = () => {
 
   const fetchOrganization = async () => {
     try {
-      const orgData = await getMyOrganization();
-      setOrganization(orgData);
+      // Only fetch organization if user is not platform admin
+      const user = await apiClient('/users/me', { method: 'GET' });
+      
+      if (user.org_id) {
+        // User belongs to an organization
+        const orgData = await getMyOrganization();
+        setOrganization(orgData);
+      } else {
+        // Platform admin - no organization
+        setOrganization(null);
+      }
     } catch (error: any) {
       console.error('Fetch organization error:', error);
-      // Don't show error for organization fetch as it might be optional
+      // Don't show error for organization fetch as it might be optional for platform admins
       if (error.status === 401) {
         // Handle token expiration same as profile
         Alert.alert(
