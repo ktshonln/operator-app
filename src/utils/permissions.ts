@@ -1,4 +1,5 @@
 // Permission utility functions for handling user permissions and access control
+import { User as BaseUser } from '../types/user';
 
 export interface UserPermission {
   inverted: boolean;
@@ -11,13 +12,8 @@ export interface UserPermission {
   };
 }
 
-export interface User {
-  id: string;
-  org_id: string | null;
-  roles: string[];
+export interface User extends BaseUser {
   permissions: UserPermission[];
-  user_type: string;
-  status: string;
 }
 
 /**
