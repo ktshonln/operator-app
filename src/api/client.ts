@@ -565,24 +565,67 @@ export const removeGrantFromRole = async (roleId: string, grantId: string) => {
 };
 
 // User Management API functions
-export const getUsers = async (orgId?: string) => {
-  const endpoint = orgId ? `/users?org_id=${orgId}` : '/users';
+export const getUsers = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  user_type?: string;
+  org_id?: string;
+}) => {
+  let endpoint = '/users';
+  
+  if (params) {
+    const searchParams = new URLSearchParams();
+    
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    if (params.search) searchParams.append('search', params.search);
+    if (params.status) searchParams.append('status', params.status);
+    if (params.user_type) searchParams.append('user_type', params.user_type);
+    if (params.org_id) searchParams.append('org_id', params.org_id);
+    
+    if (searchParams.toString()) {
+      endpoint += `?${searchParams.toString()}`;
+    }
+  }
+  
+  console.log('API Client - Fetching users with endpoint:', endpoint);
+  
   const response = await apiClient(endpoint, {
     method: 'GET',
   });
   
   // Handle paginated response
   if (response && response.data && Array.isArray(response.data)) {
-    return response.data;
+    return {
+      data: response.data,
+      total: response.total || response.data.length,
+      page: response.page || 1,
+      limit: response.limit || response.data.length,
+      totalPages: response.totalPages || Math.ceil((response.total || response.data.length) / (response.limit || response.data.length))
+    };
   }
   
-  // If it's already an array, return as is
+  // If it's already an array, return as is with pagination info
   if (Array.isArray(response)) {
-    return response;
+    return {
+      data: response,
+      total: response.length,
+      page: 1,
+      limit: response.length,
+      totalPages: 1
+    };
   }
   
   // Fallback
-  return [];
+  return {
+    data: [],
+    total: 0,
+    page: 1,
+    limit: 0,
+    totalPages: 0
+  };
 };
 
 export const getUserById = async (userId: string) => {
