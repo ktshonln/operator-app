@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { getInvitations, updateInvitation, resendInvitation, cancelInvitation } from '../api/client';
+import { authStore } from '../api/authStore';
 import { useOrganization } from '../hooks/useOrganization';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -44,8 +45,18 @@ export const InvitationsScreen = () => {
   const fetchInvitations = async () => {
     setLoading(true);
     try {
-      // For platform admins, get all invitations; for org admins, get org-specific invitations
-      const orgId = isPlatformAdmin ? undefined : organization?.id;
+      let orgId: string | undefined;
+      
+      if (isPlatformAdmin) {
+        // Platform admin gets all invitations
+        orgId = undefined;
+      } else {
+        // Get org_id from user data for faster loading
+        const userData = await authStore.getUser();
+        orgId = userData?.org_id || organization?.id;
+      }
+      
+      console.log('InvitationsScreen: Fetching invitations for orgId:', orgId);
       const invitationsData = await getInvitations(orgId);
       setInvitations(invitationsData);
     } catch (error: any) {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getMyOrganization, updateOrganization, apiClient } from '../api/client';
+import { getMyOrganization, updateOrganization } from '../api/client';
 import { Organization } from '../types/organization';
+import { authStore } from '../api/authStore';
 
 export const useOrganization = () => {
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -14,11 +15,17 @@ export const useOrganization = () => {
       setLoading(true);
       setError(null);
       
-      // First check if user is platform admin
-      const user = await apiClient('/users/me', { method: 'GET' });
+      // Get user data from auth store instead of making API call
+      const user = await authStore.getUser();
+      
+      if (!user) {
+        setError('User not found');
+        return;
+      }
       
       if (!user.org_id) {
         // User is platform admin (no organization)
+        console.log('useOrganization: Platform admin detected, no org fetch needed');
         setIsPlatformAdmin(true);
         setOrganization(null);
         setError(null);
@@ -26,18 +33,22 @@ export const useOrganization = () => {
       }
       
       // User belongs to an organization, fetch it
+      // We need the full organization data because the Organization type has many required fields
+      console.log('useOrganization: Fetching organization for org admin');
       setIsPlatformAdmin(false);
       const orgData = await getMyOrganization();
       setOrganization(orgData);
     } catch (err: any) {
       console.error('Fetch organization error:', err);
       
-      // If it's ORG_NOT_FOUND and user has no org_id, they're platform admin
+      // If it's ORG_NOT_FOUND, user might be platform admin
       if (err.data?.error?.code === 'ORG_NOT_FOUND') {
+        console.log('useOrganization: ORG_NOT_FOUND, treating as platform admin');
         setIsPlatformAdmin(true);
         setOrganization(null);
         setError(null);
       } else {
+        console.warn('Could not fetch organization:', err);
         setError(err.message || 'Failed to fetch organization');
       }
     } finally {

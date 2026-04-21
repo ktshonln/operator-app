@@ -2,6 +2,7 @@ import { API_CONFIG } from './config';
 import { authStore } from './authStore';
 import { Organization } from '../types/organization';
 import { Role, CreateRoleRequest, UpdateRoleRequest, Permission } from '../types/role';
+import { Platform } from 'react-native';
 
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -239,6 +240,23 @@ export const getMyOrganization = async (): Promise<Organization> => {
   });
 };
 
+export const getAllOrganizations = async () => {
+  const response = await apiClient('/organizations', { method: 'GET' });
+  
+  // Handle paginated response
+  if (response && response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If it's already an array, return as is
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Fallback
+  return [];
+};
+
 export const updateOrganization = async (id: string, data: Partial<Organization>): Promise<Organization> => {
   console.log('Updating organization with data:', data);
   return apiClient(`/organizations/${id}`, {
@@ -268,39 +286,68 @@ export const resendOTPEnhanced = async (userId: string, purpose: string, channel
   });
 };
 
-// 2FA Verification API - Updated to use correct flow
+// 2FA Management API functions
 export const initiate2FA = async (userId: string) => {
-  // First we need to initiate OTP flow - let's try the request-otp endpoint
-  return apiClient('/auth/request-otp', {
+  return apiClient('/auth/resend-otp', {
     method: 'POST',
     body: { 
       user_id: userId,
-      purpose: '2fa',
-      channel: 'phone' // or 'email' based on user preference
+      purpose: 'two_factor_auth',
+      channel: 'email'
     },
   });
 };
 
 export const verify2FA = async (userId: string, otp: string) => {
-  // Use the correct verify-2fa endpoint from API docs
+  return apiClient('/auth/2fa/verify', {
+    method: 'POST',
+    body: { 
+      user_id: userId,
+      otp: otp
+    },
+  });
+};
+
+export const enable2FA = async () => {
+  return apiClient('/users/me', {
+    method: 'PATCH',
+    body: { 
+      two_factor_enabled: true 
+    },
+  });
+};
+
+export const disable2FA = async () => {
+  return apiClient('/users/me', {
+    method: 'PATCH',
+    body: { 
+      two_factor_enabled: false 
+    },
+  });
+};
+
+// Post-login 2FA verification
+export const verifyPostLogin2FA = async (userIdOrIdentifier: string, otp: string, deviceName?: string) => {
   return apiClient('/auth/verify-2fa', {
     method: 'POST',
     headers: {
       'X-Client-Type': 'mobile',
     },
     body: { 
+      user_id: userIdOrIdentifier, // API might accept identifier if user_id not available
       otp: otp,
-      device_name: 'string'
+      device_name: deviceName || `${Platform.OS}_${Platform.Version || 'device'}`
     },
   });
 };
 
-export const disable2FA = async (userId: string) => {
-  // Use PATCH method to disable 2FA on user profile
-  return apiClient('/users/me', {
-    method: 'PATCH',
-    body: { 
-      two_factor_enabled: false 
+export const requestPostLogin2FA = async (userIdOrIdentifier: string) => {
+  return apiClient('/auth/resend-otp', {
+    method: 'POST',
+    body: {
+      user_id: userIdOrIdentifier, // API might accept identifier if user_id not available
+      purpose: 'two_factor_auth',
+      channel: 'email'
     },
   });
 };
@@ -549,7 +596,7 @@ export const inviteUser = async (userData: {
   first_name: string;
   last_name: string;
   org_id: string;
-  role_id: string;
+  role_slug: string;
   email?: string;
   phone_number?: string;
 }) => {

@@ -20,6 +20,7 @@ import { UserDetailsScreen } from './src/screens/UserDetailsScreen';
 import { UserFormScreen } from './src/screens/UserFormScreen';
 import { OrganizationScreen } from './src/screens/OrganizationScreen';
 import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
+import { PostLogin2FAScreen } from './src/screens/PostLogin2FAScreen';
 import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
 import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
 import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
@@ -35,6 +36,7 @@ const Stack = createStackNavigator();
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [needs2FAVerification, setNeeds2FAVerification] = useState(false);
 
   useEffect(() => {
     async function initializeApp() {
@@ -44,12 +46,29 @@ function App() {
         // Check if user has valid tokens
         const token = await authStore.getToken();
         const refreshToken = await authStore.getRefreshToken();
+        const user = await authStore.getUser();
         
         // If we have both tokens, consider user authenticated
-        setIsAuthenticated(!!(token && refreshToken));
+        const hasTokens = !!(token && refreshToken);
+        setIsAuthenticated(hasTokens);
+        
+        // Check if user needs 2FA verification
+        if (hasTokens) {
+          // User is fully authenticated
+          setNeeds2FAVerification(false);
+        } else if (user && !hasTokens) {
+          // User exists but no tokens - might be in 2FA flow
+          console.log('User exists without tokens - setting needs2FAVerification to true');
+          setNeeds2FAVerification(true);
+        } else {
+          setNeeds2FAVerification(false);
+        }
+        
+        console.log('App initialization complete');
       } catch (error) {
         console.error('Error initializing app:', error);
         setIsAuthenticated(false);
+        setNeeds2FAVerification(false);
       } finally {
         setIsLoading(false);
       }
@@ -63,15 +82,35 @@ function App() {
     const checkAuthStatus = async () => {
       const token = await authStore.getToken();
       const refreshToken = await authStore.getRefreshToken();
+      const user = await authStore.getUser();
       const hasTokens = !!(token && refreshToken);
       
+      // Only update state if there's actually a change
       if (hasTokens !== isAuthenticated) {
+        console.log('Auth status changed:', { hasTokens, isAuthenticated });
         setIsAuthenticated(hasTokens);
+      }
+      
+      // Check 2FA verification state only if auth status changed
+      if (hasTokens !== isAuthenticated) {
+        if (!hasTokens && user) {
+          // User exists but no tokens - in 2FA flow
+          console.log('Setting needs2FAVerification to true - user without tokens:', { userId: user.id, identifier: user.identifier });
+          setNeeds2FAVerification(true);
+        } else if (hasTokens) {
+          // User is fully authenticated
+          console.log('Setting needs2FAVerification to false - user has tokens');
+          setNeeds2FAVerification(false);
+        } else {
+          // No user and no tokens - logged out
+          console.log('Setting needs2FAVerification to false - no user, no tokens');
+          setNeeds2FAVerification(false);
+        }
       }
     };
 
-    // Check auth status periodically
-    const interval = setInterval(checkAuthStatus, 1000);
+    // Check auth status less frequently - every 5 seconds instead of every second
+    const interval = setInterval(checkAuthStatus, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
@@ -83,12 +122,22 @@ function App() {
     );
   }
 
+  // Determine initial route based on auth and 2FA state
+  let initialRouteName = "Login";
+  if (needs2FAVerification) {
+    initialRouteName = "PostLogin2FA";
+  } else if (isAuthenticated) {
+    initialRouteName = "Main";
+  }
+  
+        console.log('App navigation decision:', { initialRouteName });
+
 
   return (
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator 
-          initialRouteName={isAuthenticated ? "Main" : "Login"}
+          initialRouteName={initialRouteName}
           screenOptions={{
             headerShown: false,
           }}
@@ -107,6 +156,7 @@ function App() {
           <Stack.Screen name="UserForm" component={UserFormScreen} />
           <Stack.Screen name="Organization" component={OrganizationScreen} />
           <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
+          <Stack.Screen name="PostLogin2FA" component={PostLogin2FAScreen} />
           <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
           <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
           <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />

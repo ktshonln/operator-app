@@ -18,6 +18,7 @@ import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { getRoleById, updateRole, deleteRole, createRole, addGrantToRole, removeGrantFromRole, getMyOrganization, getRolesWithGrants, getPermissions, apiClient } from '../api/client';
+import { authStore } from '../api/authStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
 
@@ -92,23 +93,33 @@ export const RoleManagementScreen: React.FC = () => {
       
       if (isPlatformAdmin) {
         // Platform admin can see all roles
+        console.log('RoleManagementScreen: Fetching all roles for platform admin');
         rolesData = await getRolesWithGrants();
       } else {
         // Organization admin - get organization-specific roles
-        try {
-          const orgData = await getMyOrganization();
-          orgId = orgData.id;
-          rolesData = await getRolesWithGrants(orgData.id);
-        } catch (orgError: any) {
-          console.warn('Could not fetch organization:', orgError);
-          
-          // If it's ORG_NOT_FOUND, user might be platform admin
-          if (orgError.data?.error?.code === 'ORG_NOT_FOUND') {
-            // Try to get all roles (platform admin)
-            rolesData = await getRolesWithGrants();
-          } else {
-            setRoles([]);
-            return;
+        // Get org_id from user data instead of making API call
+        const userData = await authStore.getUser();
+        if (userData?.org_id) {
+          console.log('RoleManagementScreen: Using org_id from user data:', userData.org_id);
+          orgId = userData.org_id;
+          rolesData = await getRolesWithGrants(userData.org_id);
+        } else {
+          // Fallback to API call only if needed
+          try {
+            const orgData = await getMyOrganization();
+            orgId = orgData.id;
+            rolesData = await getRolesWithGrants(orgData.id);
+          } catch (orgError: any) {
+            console.warn('Could not fetch organization:', orgError);
+            
+            // If it's ORG_NOT_FOUND, user might be platform admin
+            if (orgError.data?.error?.code === 'ORG_NOT_FOUND') {
+              // Try to get all roles (platform admin)
+              rolesData = await getRolesWithGrants();
+            } else {
+              setRoles([]);
+              return;
+            }
           }
         }
       }

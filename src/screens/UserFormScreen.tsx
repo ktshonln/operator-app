@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getMyOrganization, inviteUser, updateUser, getUserById, getRolesWithGrants } from '../api/client';
+import { getMyOrganization, getAllOrganizations, inviteUser, updateUser, getUserById, getRolesWithGrants } from '../api/client';
+import { authStore } from '../api/authStore';
 import { Role } from '../types/role';
 import { UpdateUserRequest } from '../types/user';
 import { usePermissions } from '../hooks/usePermissions';
@@ -26,12 +27,16 @@ export const UserFormScreen = () => {
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState(''); // For platform admins
   const [roles, setRoles] = useState<Role[]>([]);
+  const [organizations, setOrganizations] = useState<{[key: string]: string}>({}); // Map org_id to org_name
   const [loading, setLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(isEdit);
 
   useEffect(() => {
     fetchRoles();
+    if (isPlatformAdmin) {
+      fetchOrganizations();
+    }
     if (isEdit && userId) {
       fetchUser();
     }
@@ -55,9 +60,29 @@ export const UserFormScreen = () => {
     }
   };
 
+  const fetchOrganizations = async () => {
+    try {
+      const orgsData = await getAllOrganizations();
+      const orgMap: {[key: string]: string} = {};
+      
+      if (Array.isArray(orgsData)) {
+        orgsData.forEach((org: any) => {
+          if (org.id && org.name) {
+            orgMap[org.id] = org.name;
+          }
+        });
+      }
+      
+      setOrganizations(orgMap);
+    } catch (error: any) {
+      console.error('Failed to fetch organizations:', error);
+      // Don't show error to user, just continue without org names
+    }
+  };
+
   // Defensive effect to ensure roles is always an array
   useEffect(() => {
-    if (!Array.isArray(roles)) {
+    if (!Array.isArray(roles) && roles !== null && roles !== undefined) {
       console.warn('Roles is not an array, resetting to empty array:', roles);
       setRoles([]);
     }
@@ -71,17 +96,27 @@ export const UserFormScreen = () => {
       
       if (!isPlatformAdmin) {
         // For organization admins, get organization-specific roles
-        try {
-          const orgData = await getMyOrganization();
-          orgId = orgData.id;
-          rolesData = await getRolesWithGrants(orgData.id);
-        } catch (orgError) {
-          console.warn('Could not fetch organization:', orgError);
-          setRoles([]);
-          return;
+        // Get org_id from user data instead of making API call
+        const userData = await authStore.getUser();
+        if (userData?.org_id) {
+          console.log('UserFormScreen: Using org_id from user data for roles');
+          orgId = userData.org_id;
+          rolesData = await getRolesWithGrants(userData.org_id);
+        } else {
+          // Fallback to API call only if needed
+          try {
+            const orgData = await getMyOrganization();
+            orgId = orgData.id;
+            rolesData = await getRolesWithGrants(orgData.id);
+          } catch (orgError) {
+            console.warn('Could not fetch organization:', orgError);
+            setRoles([]);
+            return;
+          }
         }
       } else {
         // For platform admins, get all roles (no org filter)
+        console.log('UserFormScreen: Fetching all roles for platform admin');
         rolesData = await getRolesWithGrants();
       }
       
@@ -124,6 +159,17 @@ export const UserFormScreen = () => {
     // Basic validation
     if (!firstName || !lastName) {
       Alert.alert('Error', 'Please fill out first name and last name');
+      return;
+    }
+
+    if (!selectedRole) {
+      Alert.alert('Error', 'Please select a role');
+      return;
+    }
+
+    // For invitations, require at least email or phone
+    if (!isEdit && !email.trim() && !phone.trim()) {
+      Alert.alert('Error', 'Please provide at least an email address or phone number for the invitation');
       return;
     }
 
@@ -177,18 +223,44 @@ export const UserFormScreen = () => {
           }
         }
 
+        // Find the selected role to get its slug
+        const selectedRoleObj = roles.find(role => role.id === selectedRole);
+        if (!selectedRoleObj) {
+          Alert.alert('Error', 'Please select a valid role.');
+          return;
+        }
+
         // Invite new user instead of creating directly
         const inviteData = {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           org_id: orgId,
-          role_id: selectedRole,
+          role_slug: selectedRoleObj.slug,
           ...(email.trim() && { email: email.trim() }),
           ...(phone.trim() && { phone_number: phone.trim() })
         };
 
+        console.log('Sending invitation with data:', inviteData);
         await inviteUser(inviteData);
-        Alert.alert('Success', 'User invitation sent successfully! They will receive an invite link via SMS and/or email.');
+        Alert.alert(
+          'Success', 
+          'User invitation sent successfully! They will receive an invite link via SMS and/or email.',
+          [
+            {
+              text: 'View Invitations',
+              onPress: () => {
+                navigation.navigate('Invitations');
+              }
+            },
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.goBack();
+              }
+            }
+          ]
+        );
+        return; // Don't call navigation.goBack() here since Alert handles navigation
       }
       
       navigation.goBack();
@@ -199,7 +271,7 @@ export const UserFormScreen = () => {
     }
   };
 
-  const InputField = ({ label, value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default' }: any) => (
+  const InputField = useCallback(({ label, value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default' }: any) => (
     <View style={styles.inputContainer}>
       <Typography variant="caption" style={styles.label}>{label} *</Typography>
       <TextInput
@@ -212,7 +284,7 @@ export const UserFormScreen = () => {
         keyboardType={keyboardType}
       />
     </View>
-  );
+  ), []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -222,15 +294,23 @@ export const UserFormScreen = () => {
         onBack={() => navigation.goBack()} 
       />
       
-      {userLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.brand} />
-          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16 }}>
-            Loading user details...
-          </Typography>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        {userLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.brand} />
+            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16 }}>
+              Loading user details...
+            </Typography>
+          </View>
+        ) : (
+          <ScrollView 
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
         
         <View style={styles.section}>
           <Typography variant="h2" style={styles.sectionTitle}>Basic Information</Typography>
@@ -272,7 +352,7 @@ export const UserFormScreen = () => {
                     </Typography>
                     {isPlatformAdmin && r.org_id && (
                       <Typography variant="caption" color={selectedRole === r.id ? COLORS.white : COLORS.textSecondary}>
-                        Org: {r.org_id}
+                        {organizations[r.org_id] || r.org_id}
                       </Typography>
                     )}
                   </View>
@@ -310,7 +390,8 @@ export const UserFormScreen = () => {
         </TouchableOpacity>
         
         </ScrollView>
-      )}
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

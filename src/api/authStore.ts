@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'auth_user';
+const TWO_FA_VERIFIED_KEY = 'two_fa_verified';
 
 export const authStore = {
   saveToken: async (token: string) => {
@@ -57,11 +58,30 @@ export const authStore = {
     }
   },
 
+  set2FAVerified: async (verified: boolean) => {
+    try {
+      await AsyncStorage.setItem(TWO_FA_VERIFIED_KEY, JSON.stringify(verified));
+    } catch (e) {
+      console.error('Error saving 2FA verification status', e);
+    }
+  },
+
+  is2FAVerified: async () => {
+    try {
+      const verified = await AsyncStorage.getItem(TWO_FA_VERIFIED_KEY);
+      return verified ? JSON.parse(verified) : false;
+    } catch (e) {
+      console.error('Error getting 2FA verification status', e);
+      return false;
+    }
+  },
+
   clearAll: async () => {
     try {
       await AsyncStorage.removeItem(TOKEN_KEY);
       await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
       await AsyncStorage.removeItem(USER_KEY);
+      await AsyncStorage.removeItem(TWO_FA_VERIFIED_KEY);
     } catch (e) {
       console.error('Error clearing auth store', e);
     }

@@ -37,6 +37,21 @@
     "resend": "Resend",
     "invalidCode": "Invalid verification code"
   },
+  "postLogin2FA": {
+    "title": "Two-Factor Verification",
+    "description": "Enter the 6-digit verification code sent to your registered email to complete login",
+    "verify": "Verify & Continue",
+    "noCode": "Didn't receive code?",
+    "resend": "Resend",
+    "resendIn": "Resend in",
+    "logout": "Logout",
+    "logoutConfirm": "Are you sure you want to logout? You will need to login again.",
+    "infoText": "This verification is required because you have Two-Factor Authentication enabled for enhanced security.",
+    "enterComplete": "Please enter the complete 6-digit code",
+    "verificationFailed": "Invalid verification code. Please try again.",
+    "resendSuccess": "Verification code has been resent",
+    "resendFailed": "Failed to resend verification code"
+  },
   "resetPassword": {
     "title": "New Password",
     "description": "Create a new password for your account.",

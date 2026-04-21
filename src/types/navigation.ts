@@ -15,6 +15,7 @@ export type RootStackParamList = {
   UserForm: { userId?: string };
   Organization: undefined;
   TwoFactor: { userId: string; identifier: string; channel: string };
+  PostLogin2FA: undefined;
   RoleManagement: undefined;
   UserPermissions: undefined;
   LoginChannel: undefined;

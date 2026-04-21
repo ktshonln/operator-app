@@ -106,6 +106,46 @@ export const LoginScreen: React.FC = () => {
         },
       });
 
+      console.log('Login response:', { 
+        hasAccessToken: !!response.access_token, 
+        hasRefreshToken: !!response.refresh_token, 
+        hasUser: !!response.user, 
+        requires2fa: response.requires_2fa,
+        userTwoFactorEnabled: response.user?.two_factor_enabled 
+      });
+
+      // Check if 2FA is required (user has 2FA enabled but no tokens provided)
+      if (response.user?.two_factor_enabled && !response.access_token) {
+        console.log('2FA required - user has 2FA enabled but no tokens provided');
+        // Store user temporarily for 2FA verification
+        await authStore.saveUser(response.user);
+        setLoading(false);
+        
+        // Navigate to 2FA verification screen
+        navigation.navigate('PostLogin2FA');
+        return;
+      }
+
+      // Check the requires_2fa flag (API indicates 2FA is needed)
+      if (response.requires_2fa) {
+        console.log('2FA required - requires_2fa flag is true');
+        
+        // Store identifier for 2FA verification since user object might not be provided
+        const tempUser = response.user || { 
+          id: response.user_id || 'temp', 
+          identifier: identifier,
+          two_factor_enabled: true 
+        };
+        
+        await authStore.saveUser(tempUser);
+        setLoading(false);
+        
+        // Navigate to 2FA verification screen
+        navigation.navigate('PostLogin2FA');
+        return;
+      }
+
+      // Normal login flow (no 2FA required)
       if (response.access_token) {
         await authStore.saveToken(response.access_token);
       }
@@ -116,7 +156,11 @@ export const LoginScreen: React.FC = () => {
         await authStore.saveUser(response.user);
       }
 
+      // Clear any previous 2FA verification status
+      await authStore.set2FAVerified(false);
+
       setLoading(false);
+      
       setShowToast(true);
       
       toastOpacity.setValue(0);

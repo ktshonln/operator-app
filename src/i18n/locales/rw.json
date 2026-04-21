@@ -37,6 +37,21 @@
     "resend": "Ohereza nanone",
     "invalidCode": "Kode ntabwo ariyo"
   },
+  "postLogin2FA": {
+    "title": "Kwemeza mu buryo bubiri",
+    "description": "Injiza kode y'imibare 6 yoherejwe kuri imeyili yawe yanditswe kugira ngo urangize kwinjira",
+    "verify": "Emeza ukomeze",
+    "noCode": "Ntabwo wakiriye kode?",
+    "resend": "Ohereza nanone",
+    "resendIn": "Ohereza nanone mu",
+    "logout": "Sohoka",
+    "logoutConfirm": "Uzi neza ko ushaka gusohoka? Uzakeneye kwinjira nanone.",
+    "infoText": "Uku kwemeza birasabwa kuko wafunguye kwemeza mu buryo bubiri kugira ngo umutekano wiyongere.",
+    "enterComplete": "Injiza kode yuzuye y'imibare 6",
+    "verificationFailed": "Kode y'kwemeza ntabwo ariyo. Ongera ugerageze.",
+    "resendSuccess": "Kode y'kwemeza yoherejwe nanone",
+    "resendFailed": "Kwohereza kode nanone ntibyagenze neza"
+  },
   "resetPassword": {
     "title": "Ijambo banga rishya",
     "description": "Shyiraho ijambo banga rishya kuri konti yawe.",

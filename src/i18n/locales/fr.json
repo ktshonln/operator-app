@@ -37,6 +37,21 @@
     "resend": "Renvoyer",
     "invalidCode": "Code de vérification invalide"
   },
+  "postLogin2FA": {
+    "title": "Vérification à deux facteurs",
+    "description": "Entrez le code de vérification à 6 chiffres envoyé à votre e-mail enregistré pour terminer la connexion",
+    "verify": "Vérifier et continuer",
+    "noCode": "Vous n'avez pas reçu le code ?",
+    "resend": "Renvoyer",
+    "resendIn": "Renvoyer dans",
+    "logout": "Déconnexion",
+    "logoutConfirm": "Êtes-vous sûr de vouloir vous déconnecter ? Vous devrez vous reconnecter.",
+    "infoText": "Cette vérification est requise car vous avez activé l'authentification à deux facteurs pour une sécurité renforcée.",
+    "enterComplete": "Veuillez entrer le code complet à 6 chiffres",
+    "verificationFailed": "Code de vérification invalide. Veuillez réessayer.",
+    "resendSuccess": "Le code de vérification a été renvoyé",
+    "resendFailed": "Échec du renvoi du code de vérification"
+  },
   "resetPassword": {
     "title": "Nouveau mot de passe",
     "description": "Créez un nouveau mot de passe pour votre compte.",
