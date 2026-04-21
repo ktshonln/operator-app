@@ -16,6 +16,19 @@ interface RequestOptions {
 // Track if we're currently refreshing to avoid multiple refresh attempts
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
+let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
 
 export const apiClient = async (endpoint: string, options: RequestOptions = {}, isRetry = false) => {
   const { method = 'GET', headers = {}, body } = options;
@@ -69,76 +82,71 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
     if (!response.ok) {
       // Handle token expiration with automatic refresh
       if (response.status === 401 && !isRetry && endpoint !== '/auth/refresh') {
+        console.log('Token expired, attempting refresh...');
+        
+        if (isRefreshing) {
+          // If already refreshing, queue this request
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          }).then(() => {
+            // Retry with new token
+            return apiClient(endpoint, options, true);
+          }).catch((err) => {
+            throw err;
+          });
+        }
+
+        isRefreshing = true;
+        refreshPromise = refreshAccessToken();
+
         try {
-          // If we're already refreshing, wait for that to complete
-          if (isRefreshing && refreshPromise) {
-            await refreshPromise;
+          const refreshResponse = await refreshPromise;
+          
+          if (refreshResponse && refreshResponse.access_token) {
+            await authStore.saveToken(refreshResponse.access_token);
+            
+            // If new refresh token is provided, save it
+            if (refreshResponse.refresh_token) {
+              await authStore.saveRefreshToken(refreshResponse.refresh_token);
+            }
+            
+            console.log('Token refreshed successfully');
+            processQueue(null, refreshResponse.access_token);
+            
             // Retry the original request with the new token
             return apiClient(endpoint, options, true);
-          }
-
-          // Start refresh process
-          if (!isRefreshing) {
-            isRefreshing = true;
-            refreshPromise = refreshAccessToken();
-            
-            const refreshResponse = await refreshPromise;
-            
-            if (refreshResponse.access_token) {
-              await authStore.saveToken(refreshResponse.access_token);
-              
-              // If new refresh token is provided, save it
-              if (refreshResponse.refresh_token) {
-                await authStore.saveRefreshToken(refreshResponse.refresh_token);
-              }
-              
-              isRefreshing = false;
-              refreshPromise = null;
-              
-              // Retry the original request with the new token
-              return apiClient(endpoint, options, true);
-            } else {
-              // No access token in response, clear tokens and redirect to login
-              isRefreshing = false;
-              refreshPromise = null;
-              await authStore.clearAll();
-              
-              throw {
-                status: 401,
-                message: 'Your session has expired. Please login again.',
-                data,
-                isTokenExpired: true,
-              };
-            }
+          } else {
+            throw new Error('No access token in refresh response');
           }
         } catch (refreshError) {
           console.error('Token refresh failed:', refreshError);
-          isRefreshing = false;
-          refreshPromise = null;
           
-          // Clear expired tokens and redirect to login
+          // Clear all tokens and redirect to login
           await authStore.clearAll();
           
-          throw {
+          const error = {
             status: 401,
             message: 'Your session has expired. Please login again.',
             data,
             isTokenExpired: true,
           };
+          
+          processQueue(error, null);
+          throw error;
+        } finally {
+          isRefreshing = false;
+          refreshPromise = null;
         }
       }
       
       // Handle other 401 errors or if refresh failed
       if (response.status === 401) {
-        // Clear expired token
+        console.log('Unauthorized request, clearing tokens');
         await authStore.clearAll();
-        
-        // Extract meaningful error messages
-        let errorMessage = 'Your session has expired. Please login again.';
         
         throw {
           status: response.status,
-          message: errorMessage,
+          message: 'Your session has expired. Please login again.',
           data,
           isTokenExpired: true,
         };
@@ -181,6 +189,10 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
             case 'ACCOUNT_LOCKED':
               errorMessage = 'Account is locked';
               break;
+            case 'UNAUTHORIZED':
+            case 'MISSING_REFRESH_TOKEN':
+              errorMessage = 'Your session has expired. Please login again.';
+              break;
             default:
               errorMessage = data.error.code.replace(/_/g, ' ').toLowerCase();
           }
@@ -194,7 +206,7 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
       }
 
       // Override message for token expiration cases
-      if (data && data.isTokenExpired) {
+      if (data && (data.isTokenExpired || data.error?.code === 'UNAUTHORIZED' || data.error?.code === 'MISSING_REFRESH_TOKEN')) {
         errorMessage = 'Your session has expired. Please login again.';
       }
 
@@ -202,7 +214,7 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         status: response.status,
         message: errorMessage,
         data,
-        isTokenExpired: data && data.isTokenExpired,
+        isTokenExpired: data && (data.isTokenExpired || data.error?.code === 'UNAUTHORIZED' || data.error?.code === 'MISSING_REFRESH_TOKEN'),
       };
     }
 
@@ -397,16 +409,69 @@ export const refreshAccessToken = async () => {
   }
 
   try {
-    return await apiClient('/auth/refresh', {
+    console.log('Attempting to refresh token with refresh token:', refreshToken.substring(0, 10) + '...');
+    
+    // Make the refresh request without going through the main apiClient to avoid recursion
+    const url = `${API_CONFIG.BASE_URL}/auth/refresh`;
+    const response = await fetch(url, {
       method: 'POST',
-      body: { 
-        refresh_token: refreshToken 
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Client-Type': 'mobile',
+        ...API_CONFIG.DEFAULT_HEADERS,
       },
+      body: JSON.stringify({ 
+        refresh_token: refreshToken 
+      }),
     });
-  } catch (error) {
+
+    let data = null;
+    try {
+      const text = await response.text();
+      if (text.trim()) {
+        data = JSON.parse(text);
+      }
+    } catch (parseError) {
+      console.error('Failed to parse refresh response:', parseError);
+      throw new Error('Invalid response from refresh endpoint');
+    }
+
+    if (!response.ok) {
+      console.error('Refresh token request failed:', response.status, data);
+      
+      // Clear tokens on refresh failure
+      await authStore.clearAll();
+      
+      let errorMessage = 'Token refresh failed';
+      if (data?.error?.code === 'MISSING_REFRESH_TOKEN') {
+        errorMessage = 'Refresh token is missing or invalid';
+      } else if (data?.error?.message) {
+        errorMessage = data.error.message;
+      }
+      
+      throw {
+        status: response.status,
+        message: errorMessage,
+        data,
+        isTokenExpired: true,
+      };
+    }
+    
+    console.log('Token refresh successful:', {
+      hasAccessToken: !!data.access_token,
+      hasRefreshToken: !!data.refresh_token,
+      hasUser: !!data.user
+    });
+    
+    return data;
+  } catch (error: any) {
     console.error('Refresh token request failed:', error);
-    // If refresh fails, clear all tokens
+    
+    // Clear all tokens on any refresh failure
     await authStore.clearAll();
+    
+    // Re-throw the error for the caller to handle
     throw error;
   }
 };

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Typography } from './Typography';
 import { COLORS } from '../theme/colors';
 import { usePermissions } from '../hooks/usePermissions';
+import { apiClient } from '../api/client';
 
 export const PermissionDebug: React.FC = () => {
   const {
@@ -15,6 +16,38 @@ export const PermissionDebug: React.FC = () => {
     isPlatformAdmin,
     isOrgAdmin,
   } = usePermissions();
+
+  const [organizationName, setOrganizationName] = useState<string>('');
+  const [loadingOrgName, setLoadingOrgName] = useState(false);
+
+  useEffect(() => {
+    const fetchOrganizationName = async () => {
+      if (user?.org_id && !isPlatformAdmin) {
+        setLoadingOrgName(true);
+        try {
+          // Fetch all organizations and find the one with matching ID
+          const organizations = await apiClient('/organizations', { method: 'GET' });
+          let orgs = [];
+          
+          if (organizations && organizations.data && Array.isArray(organizations.data)) {
+            orgs = organizations.data;
+          } else if (Array.isArray(organizations)) {
+            orgs = organizations;
+          }
+          
+          const userOrg = orgs.find((org: any) => org.id === user.org_id);
+          setOrganizationName(userOrg?.name || `Unknown Organization (${user.org_id})`);
+        } catch (error) {
+          console.error('Failed to fetch organization name:', error);
+          setOrganizationName(`Organization ID: ${user.org_id}`);
+        } finally {
+          setLoadingOrgName(false);
+        }
+      }
+    };
+
+    fetchOrganizationName();
+  }, [user?.org_id, isPlatformAdmin]);
 
   if (loading) {
     return (
@@ -36,6 +69,16 @@ export const PermissionDebug: React.FC = () => {
     );
   }
 
+  const getOrganizationDisplay = () => {
+    if (isPlatformAdmin) {
+      return 'Platform Admin (All Organizations)';
+    }
+    if (loadingOrgName) {
+      return 'Loading organization...';
+    }
+    return organizationName || 'No Organization';
+  };
+
   return (
     <View style={styles.container}>
       <Typography variant="caption" style={styles.title}>Permission Debug</Typography>
@@ -46,7 +89,7 @@ export const PermissionDebug: React.FC = () => {
         Roles: {user.roles?.join(', ') || 'None'}
       </Typography>
       <Typography variant="caption" color={COLORS.textSecondary}>
-        Org ID: {user.org_id || 'null (Platform Admin)'}
+        Organization: {getOrganizationDisplay()}
       </Typography>
       <Typography variant="caption" color={COLORS.textSecondary}>
         Permissions: {user.permissions?.length || 0}

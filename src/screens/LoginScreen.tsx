@@ -22,6 +22,7 @@ import { COLORS } from '../theme/colors';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import { authStore } from '../api/authStore';
 import { Alert } from 'react-native';
 
@@ -31,6 +32,7 @@ const LOGO = require('../assets/images/new.png');
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { t, i18n } = useTranslation();
+  const { login } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -146,50 +148,48 @@ export const LoginScreen: React.FC = () => {
       }
 
       // Normal login flow (no 2FA required)
-      if (response.access_token) {
-        await authStore.saveToken(response.access_token);
-      }
-      if (response.refresh_token) {
-        await authStore.saveRefreshToken(response.refresh_token);
-      }
-      if (response.user) {
-        await authStore.saveUser(response.user);
-      }
+      if (response.access_token && response.refresh_token && response.user) {
+        // Use AuthContext login method
+        await login({
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+          user: response.user
+        });
 
-      // Clear any previous 2FA verification status
-      await authStore.set2FAVerified(false);
-
-      setLoading(false);
-      
-      setShowToast(true);
-      
-      toastOpacity.setValue(0);
-      toastTranslateY.setValue(20);
-      
-      Animated.parallel([
-        Animated.timing(toastOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.spring(toastTranslateY, {
-          toValue: 0,
-          friction: 4,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setTimeout(() => {
+        setLoading(false);
+        
+        setShowToast(true);
+        
+        toastOpacity.setValue(0);
+        toastTranslateY.setValue(20);
+        
+        Animated.parallel([
           Animated.timing(toastOpacity, {
-            toValue: 0,
-            duration: 300,
+            toValue: 1,
+            duration: 400,
             useNativeDriver: true,
-          }).start(() => {
-            setShowToast(false);
-            navigation.navigate('Main');
-          });
-        }, 1200);
-      });
+          }),
+          Animated.spring(toastTranslateY, {
+            toValue: 0,
+            friction: 4,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setTimeout(() => {
+            Animated.timing(toastOpacity, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }).start(() => {
+              setShowToast(false);
+              // Navigation will be handled automatically by AuthContext
+            });
+          }, 1200);
+        });
+      } else {
+        throw new Error('Incomplete login response - missing tokens or user data');
+      }
     } catch (error: any) {
       setLoading(false);
       let errorMessage = t('login.loginFailed');

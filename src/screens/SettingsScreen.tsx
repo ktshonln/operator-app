@@ -6,11 +6,12 @@ import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { Icon } from '../components/Icon';
-import { apiClient, logout, logoutAll, enable2FA, disable2FA } from '../api/client';
+import { apiClient, enable2FA, disable2FA } from '../api/client';
 import { API_CONFIG } from '../api/config';
 import { useOrganization } from '../hooks/useOrganization';
 import { usePermissions } from '../hooks/usePermissions';
 import { authStore } from '../api/authStore';
+import { useAuth } from '../contexts/AuthContext';
 
 const LANGUAGES = [
   { code: 'rw', label: 'Kinyarwanda', flag: '🇷🇼' },
@@ -21,6 +22,7 @@ const LANGUAGES = [
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
+  const { logout } = useAuth();
   const { organization, isPlatformAdmin: orgIsPlatformAdmin } = useOrganization();
   const {
     user: permissionUser,
@@ -119,18 +121,13 @@ export const SettingsScreen: React.FC = () => {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
-      // Call logout API to invalidate current session
+      // Use AuthContext logout which handles API call and local cleanup
       await logout();
+      // Navigation will be handled automatically by AuthContext
     } catch (error: any) {
-      console.error('Logout API error:', error);
-      // Continue with local logout even if API fails
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
     } finally {
-      // Clear local storage and navigate to login
-      await authStore.clearAll();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
       setLoggingOut(false);
     }
   };
@@ -139,17 +136,16 @@ export const SettingsScreen: React.FC = () => {
     setLoggingOut(true);
     try {
       // Call logout all API to invalidate all sessions
-      await logoutAll();
+      await apiClient('/auth/logout-all', { method: 'POST' });
+      
+      // Then use AuthContext logout for local cleanup
+      await logout();
+      // Navigation will be handled automatically by AuthContext
     } catch (error: any) {
       console.error('Logout all API error:', error);
       // Continue with local logout even if API fails
+      await logout();
     } finally {
-      // Clear local storage and navigate to login
-      await authStore.clearAll();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
       setLoggingOut(false);
     }
   };

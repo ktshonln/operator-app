@@ -20,10 +20,12 @@ import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { verifyPostLogin2FA, requestPostLogin2FA } from '../api/client';
 import { authStore } from '../api/authStore';
+import { useAuth } from '../contexts/AuthContext';
 
 export const PostLogin2FAScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { t } = useTranslation();
+  const { login, logout } = useAuth();
   
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -109,27 +111,23 @@ export const PostLogin2FAScreen: React.FC = () => {
       // Complete the 2FA verification and get tokens
       const response = await verifyPostLogin2FA(userIdOrIdentifier, otpCode);
       
-      // Save the tokens from the 2FA verification response
-      if (response.access_token) {
-        await authStore.saveToken(response.access_token);
+      // Use AuthContext login method to handle tokens properly
+      if (response.access_token && response.refresh_token && response.user) {
+        await login({
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+          user: response.user
+        });
+        
+        setLoading(false);
+        
+        // Clear the code
+        setCode(['', '', '', '', '', '']);
+        
+        // Navigation will be handled automatically by AuthContext
+      } else {
+        throw new Error('Incomplete 2FA verification response - missing tokens or user data');
       }
-      if (response.refresh_token) {
-        await authStore.saveRefreshToken(response.refresh_token);
-      }
-      if (response.user) {
-        await authStore.saveUser(response.user);
-      }
-      
-      // Mark 2FA as verified for this session
-      await authStore.set2FAVerified(true);
-      
-      setLoading(false);
-      
-      // Navigate to main app after successful verification
-      navigation.navigate('Main');
-      
-      // Clear the code
-      setCode(['', '', '', '', '', '']);
     } catch (error: any) {
       setLoading(false);
       console.error('Post-login 2FA verification error:', error);
@@ -172,8 +170,8 @@ export const PostLogin2FAScreen: React.FC = () => {
           text: t('postLogin2FA.logout'),
           style: 'destructive',
           onPress: async () => {
-            await authStore.clearAll();
-            navigation.navigate('Login');
+            await logout();
+            // Navigation will be handled automatically by AuthContext
           }
         }
       ]

@@ -14,6 +14,7 @@ import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatPermissionForDisplay, UserPermission } from '../utils/permissions';
+import { apiClient } from '../api/client';
 
 export const UserPermissionsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,6 +27,71 @@ export const UserPermissionsScreen: React.FC = () => {
     isOrgAdmin,
     getUserOrgScope 
   } = usePermissions();
+
+  const [organizationNames, setOrganizationNames] = useState<Record<string, string>>({});
+  const [loadingOrgNames, setLoadingOrgNames] = useState(false);
+
+  useEffect(() => {
+    const fetchOrganizationNames = async () => {
+      if (!user?.permissions) return;
+
+      // Extract unique org_ids from permissions conditions
+      const orgIds = new Set<string>();
+      user.permissions.forEach(permission => {
+        if (permission.conditions?.org_id && permission.conditions.org_id !== null) {
+          orgIds.add(permission.conditions.org_id);
+        }
+      });
+
+      if (orgIds.size === 0) return;
+
+      setLoadingOrgNames(true);
+      try {
+        // Fetch all organizations
+        const organizations = await apiClient('/organizations', { method: 'GET' });
+        let orgs = [];
+        
+        if (organizations && organizations.data && Array.isArray(organizations.data)) {
+          orgs = organizations.data;
+        } else if (Array.isArray(organizations)) {
+          orgs = organizations;
+        }
+
+        // Create mapping of org_id to org_name
+        const nameMapping: Record<string, string> = {};
+        orgIds.forEach(orgId => {
+          const org = orgs.find((o: any) => o.id === orgId);
+          nameMapping[orgId] = org?.name || `Unknown Organization (${orgId})`;
+        });
+
+        setOrganizationNames(nameMapping);
+      } catch (error) {
+        console.error('Failed to fetch organization names:', error);
+        // Create fallback mapping with IDs
+        const fallbackMapping: Record<string, string> = {};
+        orgIds.forEach(orgId => {
+          fallbackMapping[orgId] = `Organization ID: ${orgId}`;
+        });
+        setOrganizationNames(fallbackMapping);
+      } finally {
+        setLoadingOrgNames(false);
+      }
+    };
+
+    fetchOrganizationNames();
+  }, [user?.permissions]);
+
+  const formatConditionValue = (key: string, value: any): string => {
+    if (value === null) {
+      return 'platform-wide';
+    }
+    
+    if (key === 'org_id' && typeof value === 'string') {
+      return organizationNames[value] || (loadingOrgNames ? 'Loading...' : `Organization ID: ${value}`);
+    }
+    
+    return value;
+  };
 
   const renderPermissionItem = (permission: UserPermission, index: number) => {
     const isManageAll = permission.action.includes('manage') && permission.subject.includes('all');
@@ -57,7 +123,7 @@ export const UserPermissionsScreen: React.FC = () => {
                 {Object.entries(permission.conditions).map(([key, value]) => (
                   <View key={key} style={styles.conditionTag}>
                     <Typography variant="caption" style={styles.conditionText}>
-                      {key}: {value === null ? 'platform-wide' : value}
+                      {key === 'org_id' ? 'Organization' : key}: {formatConditionValue(key, value)}
                     </Typography>
                   </View>
                 ))}
@@ -138,7 +204,14 @@ export const UserPermissionsScreen: React.FC = () => {
                 {getUserOrgScope && (
                   <View style={styles.scopeInfo}>
                     <Typography variant="caption" color={COLORS.textSecondary}>
-                      Organization Scope: {getUserOrgScope || 'Platform-wide'}
+                      Organization Scope: {organizationNames[getUserOrgScope] || (loadingOrgNames ? 'Loading...' : getUserOrgScope)}
+                    </Typography>
+                  </View>
+                )}
+                {isPlatformAdmin && (
+                  <View style={styles.scopeInfo}>
+                    <Typography variant="caption" color={COLORS.textSecondary}>
+                      Organization Scope: Platform-wide (All Organizations)
                     </Typography>
                   </View>
                 )}
