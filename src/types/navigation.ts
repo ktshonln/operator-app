@@ -21,6 +21,7 @@ export type RootStackParamList = {
   LoginChannel: undefined;
   AllOrganizations: undefined;
   AllUsers: undefined;
+  CreateOrganization: undefined;
   Invitations: undefined;
   EditInvitation: { invitation: any };
 };

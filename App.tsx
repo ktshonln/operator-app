@@ -25,6 +25,7 @@ import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
 import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
 import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
 import { AllOrganizationsScreen } from './src/screens/AllOrganizationsScreen';
+import { CreateOrganizationScreen } from './src/screens/CreateOrganizationScreen';
 import { AllUsersScreen } from './src/screens/AllUsersScreen';
 import { InvitationsScreen } from './src/screens/InvitationsScreen';
 import { EditInvitationScreen } from './src/screens/EditInvitationScreen';
@@ -161,6 +162,7 @@ function App() {
           <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
           <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
           <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
+          <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
           <Stack.Screen name="AllUsers" component={AllUsersScreen} />
           <Stack.Screen name="Invitations" component={InvitationsScreen} />
           <Stack.Screen name="EditInvitation" component={EditInvitationScreen} />

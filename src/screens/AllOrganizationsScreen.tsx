@@ -15,7 +15,7 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { apiClient } from '../api/client';
+import { apiClient, approveCooperativeApplication, rejectCooperativeApplication } from '../api/client';
 import { usePermissions } from '../hooks/usePermissions';
 import { Organization } from '../types/organization';
 
@@ -76,6 +76,87 @@ export const AllOrganizationsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
+  const handleApproveCooperative = async (org: Organization) => {
+    Alert.alert(
+      'Approve Cooperative',
+      `Are you sure you want to approve the cooperative application for "${org.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await approveCooperativeApplication(org.id);
+              Alert.alert('Success', 'Cooperative application approved successfully!');
+              fetchOrganizations(); // Refresh the list
+            } catch (error: any) {
+              console.error('Failed to approve cooperative:', error);
+              Alert.alert('Error', error.message || 'Failed to approve cooperative application');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectCooperative = async (org: Organization) => {
+    Alert.prompt(
+      'Reject Cooperative',
+      `Please provide a reason for rejecting "${org.name}"'s cooperative application:`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async (reason) => {
+            try {
+              await rejectCooperativeApplication(org.id, reason);
+              Alert.alert('Success', 'Cooperative application rejected successfully!');
+              fetchOrganizations(); // Refresh the list
+            } catch (error: any) {
+              console.error('Failed to reject cooperative:', error);
+              Alert.alert('Error', error.message || 'Failed to reject cooperative application');
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default'
+    );
+  };
+
+  const renderCooperativeActions = (org: Organization) => {
+    if (org.org_type !== 'cooperative' || org.status !== 'pending') {
+      return null;
+    }
+
+    return (
+      <View style={styles.cooperativeActions}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.approveButton]}
+          onPress={() => handleApproveCooperative(org)}
+        >
+          <Icon name="check" size={16} color={COLORS.white} />
+          <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
+            Approve
+          </Typography>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.actionButton, styles.rejectButton]}
+          onPress={() => handleRejectCooperative(org)}
+        >
+          <Icon name="close" size={16} color={COLORS.white} />
+          <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
+            Reject
+          </Typography>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'approved': return '#10B981';
@@ -133,6 +214,9 @@ export const AllOrganizationsScreen: React.FC = () => {
           </View>
         )}
       </View>
+      
+      {/* Cooperative approval actions */}
+      {renderCooperativeActions(item)}
     </TouchableOpacity>
   );
 
@@ -173,7 +257,7 @@ export const AllOrganizationsScreen: React.FC = () => {
             style={styles.addButton}
             onPress={() => {
               // Navigate to create organization screen
-              Alert.alert(t('platformAdmin.createOrganization'), t('platformAdmin.organizationCreationSoon'));
+              navigation.navigate('CreateOrganization');
             }}
           >
             <Icon name="add" size={20} color={COLORS.white} />
@@ -288,5 +372,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
+  },
+  cooperativeActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 8,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  approveButton: {
+    backgroundColor: '#10B981',
+  },
+  rejectButton: {
+    backgroundColor: '#EF4444',
+  },
+  actionText: {
+    fontWeight: '600',
   },
 });

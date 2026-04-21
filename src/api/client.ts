@@ -257,6 +257,40 @@ export const getAllOrganizations = async () => {
   return [];
 };
 
+export const createOrganization = async (orgData: {
+  name: string;
+  org_type: string;
+  contact_first_name: string;
+  contact_last_name: string;
+  contact_email: string;
+  contact_phone?: string;
+  address?: string;
+  city?: string;
+  license_number?: string;
+  parent_org_id?: string;
+}) => {
+  console.log('API Client - Creating organization with data:', JSON.stringify(orgData, null, 2));
+  return apiClient('/organizations', {
+    method: 'POST',
+    body: orgData,
+  });
+};
+
+export const approveCooperativeApplication = async (orgId: string) => {
+  console.log('API Client - Approving cooperative application for org:', orgId);
+  return apiClient(`/organizations/${orgId}/cooperative-approve`, {
+    method: 'POST',
+  });
+};
+
+export const rejectCooperativeApplication = async (orgId: string, reason?: string) => {
+  console.log('API Client - Rejecting cooperative application for org:', orgId, 'Reason:', reason);
+  return apiClient(`/organizations/${orgId}/cooperative-reject`, {
+    method: 'POST',
+    body: reason ? { reason } : {},
+  });
+};
+
 export const updateOrganization = async (id: string, data: Partial<Organization>): Promise<Organization> => {
   console.log('Updating organization with data:', data);
   return apiClient(`/organizations/${id}`, {
