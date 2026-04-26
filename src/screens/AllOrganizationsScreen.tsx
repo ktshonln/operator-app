@@ -15,7 +15,7 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { apiClient, approveCooperativeApplication, rejectCooperativeApplication } from '../api/client';
+import { apiClient, approveOrganization, rejectOrganization, suspendOrganization, approveCooperativeApplication } from '../api/client';
 import { usePermissions } from '../hooks/usePermissions';
 import { Organization } from '../types/organization';
 
@@ -76,23 +76,21 @@ export const AllOrganizationsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleApproveCooperative = async (org: Organization) => {
+  const handleActivateOrg = async (org: Organization) => {
     Alert.alert(
-      'Approve Cooperative',
-      `Are you sure you want to approve the cooperative application for "${org.name}"?`,
+      'Activate Organization',
+      `Set "${org.name}" status to active?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Approve',
-          style: 'default',
+          text: 'Activate',
           onPress: async () => {
             try {
-              await approveCooperativeApplication(org.id);
-              Alert.alert('Success', 'Cooperative application approved successfully!');
-              fetchOrganizations(); // Refresh the list
+              await approveOrganization(org.id);
+              Alert.alert('Success', `"${org.name}" is now active.`);
+              fetchOrganizations();
             } catch (error: any) {
-              console.error('Failed to approve cooperative:', error);
-              Alert.alert('Error', error.message || 'Failed to approve cooperative application');
+              Alert.alert('Error', error.message);
             }
           },
         },
@@ -100,61 +98,161 @@ export const AllOrganizationsScreen: React.FC = () => {
     );
   };
 
-  const handleRejectCooperative = async (org: Organization) => {
+  const handleSuspendOrg = async (org: Organization) => {
+    Alert.alert(
+      'Suspend Organization',
+      `Suspend "${org.name}"? This will blacklist all active tokens for its users.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Suspend',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await suspendOrganization(org.id);
+              Alert.alert('Success', `"${org.name}" has been suspended.`);
+              fetchOrganizations();
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectOrg = async (org: Organization) => {
     Alert.prompt(
-      'Reject Cooperative',
-      `Please provide a reason for rejecting "${org.name}"'s cooperative application:`,
+      'Reject Organization',
+      `Provide a reason for rejecting "${org.name}":`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reject',
           style: 'destructive',
           onPress: async (reason) => {
+            if (!reason?.trim()) {
+              Alert.alert('Error', 'A rejection reason is required.');
+              return;
+            }
             try {
-              await rejectCooperativeApplication(org.id, reason);
-              Alert.alert('Success', 'Cooperative application rejected successfully!');
-              fetchOrganizations(); // Refresh the list
+              await rejectOrganization(org.id, reason.trim());
+              Alert.alert('Success', `"${org.name}" has been rejected.`);
+              fetchOrganizations();
             } catch (error: any) {
-              console.error('Failed to reject cooperative:', error);
-              Alert.alert('Error', error.message || 'Failed to reject cooperative application');
+              Alert.alert('Error', error.message);
             }
           },
         },
       ],
-      'plain-text',
-      '',
-      'default'
+      'plain-text'
     );
   };
 
-  const renderCooperativeActions = (org: Organization) => {
-    if (org.org_type !== 'cooperative' || org.status !== 'pending') {
-      return null;
-    }
+  const handleApproveCooperative = async (org: Organization) => {
+    Alert.alert(
+      'Pre-approve Cooperative',
+      `Pre-approve "${org.name}"? A Katisha admin must still set status to active for final approval.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pre-approve',
+          onPress: async () => {
+            try {
+              await approveCooperativeApplication(org.id);
+              Alert.alert('Success', 'Cooperative pre-approved. Use Activate for final approval.');
+              fetchOrganizations();
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
 
-    return (
-      <View style={styles.cooperativeActions}>
+  const renderOrgActions = (org: Organization) => {
+    const actions = [];
+
+    // Activate — for any pending org (platform admin final approval)
+    if (org.status === 'pending') {
+      actions.push(
         <TouchableOpacity
-          style={[styles.actionButton, styles.approveButton]}
-          onPress={() => handleApproveCooperative(org)}
+          key="activate"
+          style={[styles.actionButton, styles.activateButton]}
+          onPress={() => handleActivateOrg(org)}
         >
-          <Icon name="check" size={16} color={COLORS.white} />
+          <Icon name="check" size={14} color={COLORS.white} />
           <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
-            Approve
+            Activate
           </Typography>
         </TouchableOpacity>
-        
+      );
+
+      // Cooperative pre-approve (only for coop_member type)
+      if (org.org_type === 'coop_member') {
+        actions.push(
+          <TouchableOpacity
+            key="coop-approve"
+            style={[styles.actionButton, styles.coopButton]}
+            onPress={() => handleApproveCooperative(org)}
+          >
+            <Icon name="shield-check" size={14} color={COLORS.white} />
+            <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
+              Pre-approve
+            </Typography>
+          </TouchableOpacity>
+        );
+      }
+
+      actions.push(
         <TouchableOpacity
+          key="reject"
           style={[styles.actionButton, styles.rejectButton]}
-          onPress={() => handleRejectCooperative(org)}
+          onPress={() => handleRejectOrg(org)}
         >
-          <Icon name="close" size={16} color={COLORS.white} />
+          <Icon name="close" size={14} color={COLORS.white} />
           <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
             Reject
           </Typography>
         </TouchableOpacity>
-      </View>
-    );
+      );
+    }
+
+    // Suspend — for active orgs
+    if (org.status === 'active') {
+      actions.push(
+        <TouchableOpacity
+          key="suspend"
+          style={[styles.actionButton, styles.suspendButton]}
+          onPress={() => handleSuspendOrg(org)}
+        >
+          <Icon name="minus-circle" size={14} color={COLORS.white} />
+          <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
+            Suspend
+          </Typography>
+        </TouchableOpacity>
+      );
+    }
+
+    // Re-activate — for suspended or rejected orgs
+    if (org.status === 'suspended' || org.status === 'rejected') {
+      actions.push(
+        <TouchableOpacity
+          key="reactivate"
+          style={[styles.actionButton, styles.activateButton]}
+          onPress={() => handleActivateOrg(org)}
+        >
+          <Icon name="check" size={14} color={COLORS.white} />
+          <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
+            Re-activate
+          </Typography>
+        </TouchableOpacity>
+      );
+    }
+
+    if (actions.length === 0) return null;
+    return <View style={styles.orgActions}>{actions}</View>;
   };
 
   const getStatusColor = (status: string) => {
@@ -215,8 +313,8 @@ export const AllOrganizationsScreen: React.FC = () => {
         )}
       </View>
       
-      {/* Cooperative approval actions */}
-      {renderCooperativeActions(item)}
+      {/* Organization status actions */}
+      {renderOrgActions(item)}
     </TouchableOpacity>
   );
 
@@ -373,26 +471,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 60,
   },
-  cooperativeActions: {
+  orgActions: {
     flexDirection: 'row',
     marginTop: 12,
     gap: 8,
+    flexWrap: 'wrap',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
     gap: 4,
   },
-  approveButton: {
+  activateButton: {
     backgroundColor: '#10B981',
+  },
+  coopButton: {
+    backgroundColor: '#3B82F6',
+  },
+  suspendButton: {
+    backgroundColor: '#F59E0B',
   },
   rejectButton: {
     backgroundColor: '#EF4444',
   },
   actionText: {
     fontWeight: '600',
+    fontSize: 11,
   },
 });

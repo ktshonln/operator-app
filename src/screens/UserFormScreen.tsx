@@ -16,7 +16,7 @@ export const UserFormScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { t } = useTranslation();
-  const { isPlatformAdmin } = usePermissions();
+  const { isPlatformAdmin, loading: permissionsLoading } = usePermissions();
   const { userId } = route.params || {};
   const isEdit = !!userId;
 
@@ -33,10 +33,16 @@ export const UserFormScreen = () => {
   const [userLoading, setUserLoading] = useState(isEdit);
 
   useEffect(() => {
+    // Wait for permissions to load before fetching roles
+    if (permissionsLoading) return;
+
     fetchRoles();
     if (isPlatformAdmin) {
       fetchOrganizations();
     }
+  }, [permissionsLoading, isPlatformAdmin]);
+
+  useEffect(() => {
     if (isEdit && userId) {
       fetchUser();
     }
@@ -115,7 +121,8 @@ export const UserFormScreen = () => {
           }
         }
       } else {
-        // For platform admins, get all roles (no org filter)
+        // For platform admins, get all roles but only show org-specific ones for invitations
+        // (system roles with org_id=null can't be assigned via invitation to an org)
         console.log('UserFormScreen: Fetching all roles for platform admin');
         rolesData = await getRolesWithGrants();
       }
@@ -123,7 +130,8 @@ export const UserFormScreen = () => {
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
         if (isPlatformAdmin) {
-          // Platform admins can see all roles
+          // Platform admins see ALL roles including system roles
+          console.log('UserFormScreen: Platform admin roles available:', rolesData.length);
           setRoles(rolesData);
         } else {
           // Filter to only show roles that belong to this organization or are relevant to it
@@ -155,9 +163,36 @@ export const UserFormScreen = () => {
     }
   };
 
+  const DEFAULT_COUNTRY_CODE = '+250'; // Rwanda
+
+  const normalizePhone = (phoneNumber: string): string => {
+    const trimmed = phoneNumber.trim();
+    if (!trimmed) return '';
+    // Already has country code
+    if (trimmed.startsWith('+')) return trimmed;
+    // Has leading 0 (local format like 0780000000) — strip it and add country code
+    if (trimmed.startsWith('0')) return `${DEFAULT_COUNTRY_CODE}${trimmed.slice(1)}`;
+    // Just digits — prepend country code
+    return `${DEFAULT_COUNTRY_CODE}${trimmed}`;
+  };
+
+  const validatePhone = (phoneNumber: string): boolean => {
+    if (!phoneNumber.trim()) return true; // optional field
+    const normalized = normalizePhone(phoneNumber);
+    // +[country code][number], 7-15 digits after +
+    const phoneRegex = /^\+[1-9]\d{6,14}$/;
+    return phoneRegex.test(normalized);
+  };
+
+  const validateEmail = (emailAddress: string): boolean => {
+    if (!emailAddress.trim()) return true; // optional field
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailAddress.trim());
+  };
+
   const handleSave = async () => {
     // Basic validation
-    if (!firstName || !lastName) {
+    if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Error', 'Please fill out first name and last name');
       return;
     }
@@ -173,13 +208,15 @@ export const UserFormScreen = () => {
       return;
     }
 
-    if (!email && !phone) {
-      Alert.alert('Error', 'Please provide either email or phone number');
+    // Validate email format if provided
+    if (email.trim() && !validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address (e.g. user@example.com)');
       return;
     }
 
-    if (!selectedRole) {
-      Alert.alert('Error', 'Please select a role');
+    // Validate phone format if provided
+    if (phone.trim() && !validatePhone(phone)) {
+      Alert.alert('Error', 'Please enter a valid phone number (e.g. 0780000000 or +250780000000)');
       return;
     }
 
@@ -202,13 +239,17 @@ export const UserFormScreen = () => {
         let orgId: string;
         
         if (isPlatformAdmin) {
-          // For platform admins, we need to determine which organization to invite to
-          // For now, let's extract org_id from the selected role
+          // For platform admins, extract org_id from the selected role
           const selectedRoleObj = roles.find(r => r.id === selectedRole);
           if (selectedRoleObj && selectedRoleObj.org_id) {
+            // Org-specific role — use its org_id
             orgId = selectedRoleObj.org_id;
+          } else if (selectedOrgId) {
+            // System role — use the manually selected org
+            orgId = selectedOrgId;
           } else {
-            Alert.alert('Error', 'Please select an organization-specific role to determine which organization to invite the user to.');
+            Alert.alert('Error', 'This is a system role. Please select an organization to invite the user into.');
+            setLoading(false);
             return;
           }
         } else {
@@ -235,9 +276,9 @@ export const UserFormScreen = () => {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           org_id: orgId,
-          role_slug: selectedRoleObj.slug,
+          role_slugs: [selectedRoleObj.slug],  // API requires array
           ...(email.trim() && { email: email.trim() }),
-          ...(phone.trim() && { phone_number: phone.trim() })
+          ...(phone.trim() && { phone_number: normalizePhone(phone) })
         };
 
         console.log('Sending invitation with data:', inviteData);
@@ -265,6 +306,7 @@ export const UserFormScreen = () => {
       
       navigation.goBack();
     } catch (error: any) {
+      // error.message already contains the backend message from apiClient
       Alert.alert('Error', error.message || `Failed to ${isEdit ? 'update' : 'invite'} user`);
     } finally {
       setLoading(false);
@@ -317,7 +359,22 @@ export const UserFormScreen = () => {
           <InputField label="First Name" value={firstName} onChangeText={setFirstName} placeholder="e.g. John" />
           <InputField label="Last Name" value={lastName} onChangeText={setLastName} placeholder="e.g. Doe" />
           <InputField label="Email Address" value={email} onChangeText={setEmail} placeholder="john.doe@example.com" keyboardType="email-address" />
-          <InputField label="Phone Number" value={phone} onChangeText={setPhone} placeholder="+250 123 456 789" keyboardType="phone-pad" />
+          <View style={styles.inputContainer}>
+            <Typography variant="caption" style={styles.label}>Phone Number</Typography>
+            <TextInput
+              style={[styles.input, phone.trim() && !validatePhone(phone) && styles.inputError]}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+250780000000"
+              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="phone-pad"
+            />
+            {phone.trim() && !validatePhone(phone) && (
+              <Typography variant="caption" color="#EF4444" style={{ marginTop: 4 }}>
+                Enter a valid phone number (e.g. 0780000000 or +250780000000)
+              </Typography>
+            )}
+          </View>
           {!isEdit && (
             <View style={styles.inviteNote}>
               <Icon name="info" size={16} color={COLORS.brand} />
@@ -333,31 +390,58 @@ export const UserFormScreen = () => {
           <View style={styles.inputContainer}>
             <Typography variant="caption" style={styles.label}>Role *</Typography>
             <View style={styles.roleContainer}>
-              {rolesLoading ? (
+              {rolesLoading || permissionsLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={COLORS.brand} />
                   <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8 }}>
                     Loading roles...
                   </Typography>
                 </View>
-              ) : (roles && Array.isArray(roles) && roles.length > 0) ? roles.map(r => (
-                <TouchableOpacity 
-                  key={r.id}
-                  style={[styles.roleButton, selectedRole === r.id && styles.roleButtonActive]}
-                  onPress={() => setSelectedRole(r.id)}
-                >
-                  <View>
-                    <Typography variant="body" color={selectedRole === r.id ? COLORS.white : COLORS.text}>
-                      {r.name}
-                    </Typography>
-                    {isPlatformAdmin && r.org_id && (
-                      <Typography variant="caption" color={selectedRole === r.id ? COLORS.white : COLORS.textSecondary}>
-                        {organizations[r.org_id] || r.org_id}
-                      </Typography>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              )) : (
+              ) : (roles && Array.isArray(roles) && roles.length > 0) ? roles.map(r => {
+                const isSystemRole = r.is_managed && r.org_id === null;
+                const isDisabled = isSystemRole && !isPlatformAdmin;
+                return (
+                  <TouchableOpacity 
+                    key={r.id}
+                    style={[
+                      styles.roleButton,
+                      selectedRole === r.id && styles.roleButtonActive,
+                      isDisabled && styles.roleButtonDisabled,
+                    ]}
+                    onPress={() => !isDisabled && setSelectedRole(r.id)}
+                    disabled={isDisabled}
+                  >
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Typography variant="body" color={
+                          isDisabled ? COLORS.textSecondary :
+                          selectedRole === r.id ? COLORS.white : COLORS.text
+                        }>
+                          {r.name}
+                        </Typography>
+                        {isSystemRole && (
+                          <View style={[
+                            styles.systemBadge,
+                            selectedRole === r.id && !isDisabled && styles.systemBadgeActive
+                          ]}>
+                            <Typography variant="caption" style={[
+                              styles.systemBadgeText,
+                              selectedRole === r.id && !isDisabled && { color: COLORS.brand }
+                            ]}>
+                              SYSTEM
+                            </Typography>
+                          </View>
+                        )}
+                      </View>
+                      {isPlatformAdmin && r.org_id && (
+                        <Typography variant="caption" color={selectedRole === r.id ? COLORS.white : COLORS.textSecondary}>
+                          {organizations[r.org_id] || r.org_id}
+                        </Typography>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }) : (
                 <Typography variant="caption" color={COLORS.textSecondary} style={{ padding: 16, textAlign: 'center' }}>
                   No roles available. Please create roles in Role Management first.
                 </Typography>
@@ -368,11 +452,38 @@ export const UserFormScreen = () => {
             <Icon name="info" size={16} color={COLORS.brand} />
             <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8, flex: 1 }}>
               {isPlatformAdmin 
-                ? "Select a role to assign to this user. The organization will be determined by the role selected."
+                ? "Select a role to assign to this user. For org-specific roles the organization is auto-detected. For system roles, select an organization below."
                 : "Permissions are managed through roles. Select a role to assign the appropriate permissions to this user."
               }
             </Typography>
           </View>
+
+          {/* Organization picker for platform admins when a system role is selected */}
+          {isPlatformAdmin && selectedRole && (() => {
+            const selectedRoleObj = roles.find(r => r.id === selectedRole);
+            const isSystemRole = selectedRoleObj?.is_managed && !selectedRoleObj?.org_id;
+            if (!isSystemRole) return null;
+            return (
+              <View style={styles.inputContainer}>
+                <Typography variant="caption" style={[styles.label, { marginTop: 12 }]}>
+                  Select Organization *
+                </Typography>
+                <View style={styles.roleContainer}>
+                  {Object.entries(organizations).map(([orgId, orgName]) => (
+                    <TouchableOpacity
+                      key={orgId}
+                      style={[styles.roleButton, selectedOrgId === orgId && styles.roleButtonActive]}
+                      onPress={() => setSelectedOrgId(orgId)}
+                    >
+                      <Typography variant="body" color={selectedOrgId === orgId ? COLORS.white : COLORS.text}>
+                        {orgName}
+                      </Typography>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         <TouchableOpacity 
@@ -437,6 +548,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     color: COLORS.text,
   },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FFF5F5',
+  },
   roleContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -453,6 +568,25 @@ const styles = StyleSheet.create({
   roleButtonActive: {
     backgroundColor: COLORS.brand,
     borderColor: COLORS.brand,
+  },
+  roleButtonDisabled: {
+    backgroundColor: '#F1F3F4',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  systemBadge: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  systemBadgeActive: {
+    backgroundColor: COLORS.white,
+  },
+  systemBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#718096',
   },
   saveButton: {
     backgroundColor: COLORS.brand,

@@ -29,7 +29,7 @@ export const CreateOrganizationScreen: React.FC = () => {
     contact_email: '',
     contact_phone: '',
     address: '',
-    city: '',
+    tin: '',
     license_number: '',
   });
   
@@ -40,16 +40,15 @@ export const CreateOrganizationScreen: React.FC = () => {
   };
 
   const validateForm = () => {
-    const required = ['name', 'org_type', 'contact_first_name', 'contact_last_name', 'contact_email'];
+    const required = ['name', 'org_type', 'contact_first_name', 'contact_last_name', 'contact_email', 'tin'];
     
     for (const field of required) {
       if (!formData[field as keyof typeof formData]?.trim()) {
-        Alert.alert('Validation Error', `${field.replace('_', ' ')} is required`);
+        Alert.alert('Validation Error', `${field.replace(/_/g, ' ')} is required`);
         return false;
       }
     }
     
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.contact_email)) {
       Alert.alert('Validation Error', 'Please enter a valid email address');
@@ -67,11 +66,10 @@ export const CreateOrganizationScreen: React.FC = () => {
       
       const orgData = {
         ...formData,
-        // Remove empty optional fields
         contact_phone: formData.contact_phone || undefined,
         address: formData.address || undefined,
-        city: formData.city || undefined,
         license_number: formData.license_number || undefined,
+        // city is not allowed by the API — excluded
       };
       
       await createOrganization(orgData);
@@ -231,11 +229,25 @@ export const CreateOrganizationScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Address Information */}
+            {/* Address & Tax Information */}
             <View style={styles.section}>
               <Typography variant="body" style={styles.sectionTitle}>
-                Address Information
+                Address & Tax Information
               </Typography>
+              
+              <View style={styles.inputGroup}>
+                <Typography variant="caption" style={styles.label}>
+                  TIN (Tax Identification Number) *
+                </Typography>
+                <TextInput
+                  style={styles.input}
+                  value={formData.tin}
+                  onChangeText={(value) => handleInputChange('tin', value)}
+                  placeholder="Enter TIN number"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="numeric"
+                />
+              </View>
               
               <View style={styles.inputGroup}>
                 <Typography variant="caption" style={styles.label}>
@@ -246,19 +258,6 @@ export const CreateOrganizationScreen: React.FC = () => {
                   value={formData.address}
                   onChangeText={(value) => handleInputChange('address', value)}
                   placeholder="Street address"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Typography variant="caption" style={styles.label}>
-                  City
-                </Typography>
-                <TextInput
-                  style={styles.input}
-                  value={formData.city}
-                  onChangeText={(value) => handleInputChange('city', value)}
-                  placeholder="City"
                   placeholderTextColor={COLORS.textSecondary}
                 />
               </View>

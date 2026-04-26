@@ -100,6 +100,9 @@ export const Header: React.FC<HeaderProps> = ({
                     <TouchableOpacity style={styles.iconButton} onPress={toggleSearch}>
                       <Icon name="search" size={22} color={COLORS.textSecondary} />
                     </TouchableOpacity>
+                    <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Analytics')}>
+                      <Icon name="chart" size={22} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.iconButton} 
                       onPress={() => navigation.navigate('Notifications')}

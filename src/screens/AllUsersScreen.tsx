@@ -52,12 +52,15 @@ export const AllUsersScreen: React.FC = () => {
       setLoading(true);
       
       // Fetch all users (no org filter for platform admin)
-      const usersData = await getUsers();
+      const response = await getUsers({ page: 1, limit: 100 });
       
-      if (usersData && Array.isArray(usersData)) {
-        setUsers(usersData);
+      // Handle paginated response format
+      if (response && response.data && Array.isArray(response.data)) {
+        setUsers(response.data);
+      } else if (Array.isArray(response)) {
+        setUsers(response);
       } else {
-        console.warn('API returned non-array users data:', usersData);
+        console.warn('API returned non-array users data:', response);
         setUsers([]);
       }
     } catch (error: any) {

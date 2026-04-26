@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 
 import './src/i18n'; // initialise i18next with Kinyarwanda as default language
@@ -29,25 +29,87 @@ import { CreateOrganizationScreen } from './src/screens/CreateOrganizationScreen
 import { AllUsersScreen } from './src/screens/AllUsersScreen';
 import { InvitationsScreen } from './src/screens/InvitationsScreen';
 import { EditInvitationScreen } from './src/screens/EditInvitationScreen';
+import { LocationsListScreen } from './src/screens/LocationsListScreen';
+import { CreateLocationScreen } from './src/screens/CreateLocationScreen';
+import { LocationDetailScreen } from './src/screens/LocationDetailScreen';
+import { RoutesListScreen } from './src/screens/RoutesListScreen';
+import { CreateRouteScreen } from './src/screens/CreateRouteScreen';
+import { RouteDetailScreen } from './src/screens/RouteDetailScreen';
+import { PriceMatrixScreen } from './src/screens/PriceMatrixScreen';
+import { TripDetailScreen } from './src/screens/TripDetailScreen';
+import { BusDetailScreen } from './src/screens/BusDetailScreen';
+import { CreateBusScreen } from './src/screens/CreateBusScreen';
+import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
 
 const Stack = createStackNavigator();
 
+// Auth screens (unauthenticated)
+function AuthStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="OTP" component={OTPScreen} />
+      <Stack.Screen name="ResetPasswordConfirm" component={ResetPasswordConfirmScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// 2FA verification screen
+function TwoFAStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="PostLogin2FA" component={PostLogin2FAScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// Main app screens (authenticated)
+function AppStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Main" component={MainTabNavigator} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="UsersList" component={UsersListScreen} />
+      <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
+      <Stack.Screen name="UserForm" component={UserFormScreen} />
+      <Stack.Screen name="Organization" component={OrganizationScreen} />
+      <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
+      <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
+      <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
+      <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
+      <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
+      <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
+      <Stack.Screen name="AllUsers" component={AllUsersScreen} />
+      <Stack.Screen name="Invitations" component={InvitationsScreen} />
+      <Stack.Screen name="EditInvitation" component={EditInvitationScreen} />
+      {/* Transport */}
+      <Stack.Screen name="LocationsList" component={LocationsListScreen} />
+      <Stack.Screen name="CreateLocation" component={CreateLocationScreen} />
+      <Stack.Screen name="LocationDetail" component={LocationDetailScreen} />
+      <Stack.Screen name="RoutesList" component={RoutesListScreen} />
+      <Stack.Screen name="CreateRoute" component={CreateRouteScreen} />
+      <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
+      <Stack.Screen name="PriceMatrix" component={PriceMatrixScreen} />
+      <Stack.Screen name="TripDetail" component={TripDetailScreen} />
+      <Stack.Screen name="BusDetail" component={BusDetailScreen} />
+      <Stack.Screen name="CreateBus" component={CreateBusScreen} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+    </Stack.Navigator>
+  );
+}
+
 function AppNavigator() {
   const { isAuthenticated, needs2FAVerification, loading } = useAuth();
 
   useEffect(() => {
-    async function hideSplash() {
-      try {
-        await SplashScreen.hideAsync();
-      } catch (error) {
-        console.error('Error hiding splash screen:', error);
-      }
-    }
-    
     if (!loading) {
-      hideSplash();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [loading]);
 
@@ -59,62 +121,32 @@ function AppNavigator() {
     );
   }
 
-  // Determine initial route based on auth and 2FA state
-  let initialRouteName = "Login";
-  if (needs2FAVerification) {
-    initialRouteName = "PostLogin2FA";
-  } else if (isAuthenticated) {
-    initialRouteName = "Main";
-  }
-  
   console.log('App navigation decision:', { 
-    initialRouteName, 
     isAuthenticated, 
     needs2FAVerification, 
     loading 
   });
 
-  return (
-    <NavigationContainer>
-      <Stack.Navigator 
-        initialRouteName={initialRouteName}
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="Main" component={MainTabNavigator} />
-        <Stack.Screen name="Notifications" component={NotificationScreen} />
-        <Stack.Screen name="OTP" component={OTPScreen} />
-        <Stack.Screen name="ResetPasswordConfirm" component={ResetPasswordConfirmScreen} />
-        <Stack.Screen name="Profile" component={ProfileScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-        <Stack.Screen name="UsersList" component={UsersListScreen} />
-        <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
-        <Stack.Screen name="UserForm" component={UserFormScreen} />
-        <Stack.Screen name="Organization" component={OrganizationScreen} />
-        <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
-        <Stack.Screen name="PostLogin2FA" component={PostLogin2FAScreen} />
-        <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
-        <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
-        <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
-        <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
-        <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
-        <Stack.Screen name="AllUsers" component={AllUsersScreen} />
-        <Stack.Screen name="Invitations" component={InvitationsScreen} />
-        <Stack.Screen name="EditInvitation" component={EditInvitationScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
+  // Render the correct navigator based on auth state
+  // React Navigation will automatically animate between them
+  if (needs2FAVerification) {
+    return <TwoFAStack />;
+  }
+
+  if (isAuthenticated) {
+    return <AppStack />;
+  }
+
+  return <AuthStack />;
 }
 
 function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <AppNavigator />
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
   );

@@ -81,7 +81,9 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
 
     if (!response.ok) {
       // Handle token expiration with automatic refresh
-      if (response.status === 401 && !isRetry && endpoint !== '/auth/refresh') {
+      // Skip refresh logic for auth endpoints — they don't use tokens
+      const isAuthEndpoint = endpoint.startsWith('/auth/');
+      if (response.status === 401 && !isRetry && !isAuthEndpoint) {
         console.log('Token expired, attempting refresh...');
         
         if (isRefreshing) {
@@ -139,8 +141,8 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         }
       }
       
-      // Handle other 401 errors or if refresh failed
-      if (response.status === 401) {
+      // Handle other 401 errors or if refresh failed (never for auth endpoints — they use credentials not tokens)
+      if (response.status === 401 && !isAuthEndpoint) {
         console.log('Unauthorized request, clearing tokens');
         await authStore.clearAll();
         
@@ -152,69 +154,34 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         };
       }
       
-      // Extract meaningful error messages
+      // Extract error message — always prefer backend message over frontend fallbacks
       let errorMessage = 'Something went wrong';
       
-      if (data && data.error) {
-        if (data.error.message) {
+      if (data?.error) {
+        if (data.error.message && data.error.message !== data.error.code) {
+          // Backend provided a human-readable message
           errorMessage = data.error.message;
+        } else if (data.error.details && Array.isArray(data.error.details) && data.error.details.length > 0) {
+          // Use validation detail messages from backend
+          errorMessage = data.error.details.map((detail: any) => {
+            if (typeof detail === 'string') return detail;
+            if (detail.message) return detail.message;
+            if (detail.field && detail.error) return `${detail.field}: ${detail.error}`;
+            return JSON.stringify(detail);
+          }).join('\n');
         } else if (data.error.code) {
-          // Convert error codes to user-friendly messages
-          switch (data.error.code) {
-            case 'VALIDATION_ERROR':
-              // Extract detailed validation errors
-              if (data.error.details && Array.isArray(data.error.details)) {
-                const validationErrors = data.error.details.map((detail: any) => {
-                  if (typeof detail === 'string') return detail;
-                  if (detail.message) return detail.message;
-                  if (detail.field && detail.error) return `${detail.field}: ${detail.error}`;
-                  return JSON.stringify(detail);
-                }).join(', ');
-                errorMessage = `Validation failed: ${validationErrors}`;
-              } else {
-                errorMessage = 'Please check your input and try again';
-              }
-              break;
-            case 'INVALID_CREDENTIALS':
-              // Check if this is a token expiration issue
-              if (data.isTokenExpired || response.status === 401) {
-                errorMessage = 'Your session has expired. Please login again.';
-              } else {
-                errorMessage = 'Invalid email/phone or password';
-              }
-              break;
-            case 'USER_NOT_FOUND':
-              errorMessage = 'User not found';
-              break;
-            case 'ACCOUNT_LOCKED':
-              errorMessage = 'Account is locked';
-              break;
-            case 'UNAUTHORIZED':
-            case 'MISSING_REFRESH_TOKEN':
-              errorMessage = 'Your session has expired. Please login again.';
-              break;
-            default:
-              errorMessage = data.error.code.replace(/_/g, ' ').toLowerCase();
-          }
+          // Use the error code as-is (readable form) — no frontend overrides
+          errorMessage = data.error.code.replace(/_/g, ' ');
         }
-      } else if (data && data.message) {
+      } else if (data?.message) {
         errorMessage = data.message;
-      } else if (response.status === 404) {
-        errorMessage = 'Endpoint not found';
-      } else if (response.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
-      }
-
-      // Override message for token expiration cases
-      if (data && (data.isTokenExpired || data.error?.code === 'UNAUTHORIZED' || data.error?.code === 'MISSING_REFRESH_TOKEN')) {
-        errorMessage = 'Your session has expired. Please login again.';
       }
 
       throw {
         status: response.status,
         message: errorMessage,
         data,
-        isTokenExpired: data && (data.isTokenExpired || data.error?.code === 'UNAUTHORIZED' || data.error?.code === 'MISSING_REFRESH_TOKEN'),
+        isTokenExpired: !!(data?.error?.code === 'UNAUTHORIZED' || data?.error?.code === 'MISSING_REFRESH_TOKEN'),
       };
     }
 
@@ -275,9 +242,9 @@ export const createOrganization = async (orgData: {
   contact_first_name: string;
   contact_last_name: string;
   contact_email: string;
+  tin: string;
   contact_phone?: string;
   address?: string;
-  city?: string;
   license_number?: string;
   parent_org_id?: string;
 }) => {
@@ -285,6 +252,14 @@ export const createOrganization = async (orgData: {
   return apiClient('/organizations', {
     method: 'POST',
     body: orgData,
+  });
+};
+
+export const approveOrganization = async (orgId: string) => {
+  console.log('API Client - Approving organization (setting status active):', orgId);
+  return apiClient(`/organizations/${orgId}`, {
+    method: 'PATCH',
+    body: { status: 'active' },
   });
 };
 
@@ -303,8 +278,29 @@ export const rejectCooperativeApplication = async (orgId: string, reason?: strin
   });
 };
 
+export const activateOrganization = async (orgId: string) => {
+  console.log('API Client - Activating organization:', orgId);
+  return apiClient(`/organizations/${orgId}`, {
+    method: 'PATCH',
+    body: { status: 'active' },
+  });
+};
+
+export const suspendOrganization = async (orgId: string) => {
+  return apiClient(`/organizations/${orgId}`, {
+    method: 'PATCH',
+    body: { status: 'suspended' },
+  });
+};
+
+export const rejectOrganization = async (orgId: string, reason: string) => {
+  return apiClient(`/organizations/${orgId}`, {
+    method: 'PATCH',
+    body: { status: 'rejected', rejection_reason: reason },
+  });
+};
+
 export const updateOrganization = async (id: string, data: Partial<Organization>): Promise<Organization> => {
-  console.log('Updating organization with data:', data);
   return apiClient(`/organizations/${id}`, {
     method: 'PATCH',
     body: data,
@@ -338,7 +334,7 @@ export const initiate2FA = async (userId: string) => {
     method: 'POST',
     body: { 
       user_id: userId,
-      purpose: 'two_factor_auth',
+      purpose: '2fa',
       channel: 'email'
     },
   });
@@ -372,28 +368,64 @@ export const disable2FA = async () => {
   });
 };
 
-// Post-login 2FA verification
-export const verifyPostLogin2FA = async (userIdOrIdentifier: string, otp: string, deviceName?: string) => {
-  return apiClient('/auth/verify-2fa', {
-    method: 'POST',
-    headers: {
-      'X-Client-Type': 'mobile',
-    },
-    body: { 
-      user_id: userIdOrIdentifier, // API might accept identifier if user_id not available
-      otp: otp,
-      device_name: deviceName || `${Platform.OS}_${Platform.Version || 'device'}`
-    },
-  });
+// Post-login 2FA verification:
+//   purpose='login'        → /auth/2fa/verify  (user has 2FA enabled, verifying login OTP)
+//   purpose='verify_email' → /auth/verify-email (new user verifying their email)
+//   fallback               → /auth/verify-login (legacy)
+export const verifyPostLogin2FA = async (userId: string, otp: string, channel?: string, purpose?: string) => {
+  let endpoint: string;
+  let body: Record<string, any>;
+
+  if (purpose === 'verify_email') {
+    endpoint = '/auth/verify-email';
+    body = { user_id: userId, otp };
+  } else if (purpose === 'login') {
+    // /auth/verify-2fa needs user_id, otp, device_name + X-Client-Type: mobile header
+    endpoint = '/auth/verify-2fa';
+    body = {
+      user_id: userId,
+      otp,
+      device_name: `${Platform.OS}_${Platform.Version || 'device'}`,
+    };
+  } else {
+    endpoint = '/auth/verify-login';
+    body = {
+      user_id: userId,
+      otp,
+      channel: channel || 'email',
+      device_name: `${Platform.OS}_${Platform.Version || 'device'}`,
+    };
+  }
+
+  console.log('=== verifyPostLogin2FA API Call ===');
+  console.log('Endpoint:', endpoint);
+  console.log('Purpose:', purpose);
+  console.log('Request body:', JSON.stringify(body, null, 2));
+
+  try {
+    const response = await apiClient(endpoint, {
+      method: 'POST',
+      body,
+    });
+    console.log('verifyPostLogin2FA SUCCESS - Response:', JSON.stringify(response, null, 2));
+    return response;
+  } catch (error: any) {
+    console.log('verifyPostLogin2FA FAILED');
+    console.log('Error status:', error?.status);
+    console.log('Error code:', error?.data?.error?.code);
+    console.log('Error message:', error?.data?.error?.message);
+    console.log('Full error data:', JSON.stringify(error?.data, null, 2));
+    throw error;
+  }
 };
 
-export const requestPostLogin2FA = async (userIdOrIdentifier: string) => {
+export const requestPostLogin2FA = async (userIdOrIdentifier: string, channel?: string) => {
   return apiClient('/auth/resend-otp', {
     method: 'POST',
     body: {
-      user_id: userIdOrIdentifier, // API might accept identifier if user_id not available
-      purpose: 'two_factor_auth',
-      channel: 'email'
+      user_id: userIdOrIdentifier,
+      purpose: 'login',
+      channel: channel || 'email'
     },
   });
 };
@@ -409,9 +441,6 @@ export const refreshAccessToken = async () => {
   }
 
   try {
-    console.log('Attempting to refresh token with refresh token:', refreshToken.substring(0, 10) + '...');
-    
-    // Make the refresh request without going through the main apiClient to avoid recursion
     const url = `${API_CONFIG.BASE_URL}/auth/refresh`;
     const response = await fetch(url, {
       method: 'POST',
@@ -419,59 +448,33 @@ export const refreshAccessToken = async () => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'X-Client-Type': 'mobile',
+        // API requires refresh token as Bearer token in Authorization header
+        'Authorization': `Bearer ${refreshToken}`,
         ...API_CONFIG.DEFAULT_HEADERS,
       },
-      body: JSON.stringify({ 
-        refresh_token: refreshToken 
-      }),
     });
 
     let data = null;
     try {
       const text = await response.text();
-      if (text.trim()) {
-        data = JSON.parse(text);
-      }
-    } catch (parseError) {
-      console.error('Failed to parse refresh response:', parseError);
+      if (text.trim()) data = JSON.parse(text);
+    } catch {
       throw new Error('Invalid response from refresh endpoint');
     }
 
     if (!response.ok) {
-      console.error('Refresh token request failed:', response.status, data);
-      
-      // Clear tokens on refresh failure
       await authStore.clearAll();
-      
-      let errorMessage = 'Token refresh failed';
-      if (data?.error?.code === 'MISSING_REFRESH_TOKEN') {
-        errorMessage = 'Refresh token is missing or invalid';
-      } else if (data?.error?.message) {
-        errorMessage = data.error.message;
-      }
-      
       throw {
         status: response.status,
-        message: errorMessage,
+        message: data?.error?.message || 'Session expired. Please log in again.',
         data,
         isTokenExpired: true,
       };
     }
-    
-    console.log('Token refresh successful:', {
-      hasAccessToken: !!data.access_token,
-      hasRefreshToken: !!data.refresh_token,
-      hasUser: !!data.user
-    });
-    
+
     return data;
   } catch (error: any) {
-    console.error('Refresh token request failed:', error);
-    
-    // Clear all tokens on any refresh failure
     await authStore.clearAll();
-    
-    // Re-throw the error for the caller to handle
     throw error;
   }
 };
@@ -738,14 +741,22 @@ export const inviteUser = async (userData: {
   first_name: string;
   last_name: string;
   org_id: string;
-  role_slug: string;
+  role_slugs: string[];  // API requires array
   email?: string;
   phone_number?: string;
 }) => {
-  return apiClient('/users/invite', {
-    method: 'POST',
-    body: userData,
-  });
+  console.log('inviteUser - sending payload:', JSON.stringify(userData, null, 2));
+  try {
+    return await apiClient('/users/invite', {
+      method: 'POST',
+      body: userData,
+    });
+  } catch (error: any) {
+    if (error?.data?.error?.details) {
+      console.error('inviteUser - validation details:', JSON.stringify(error.data.error.details, null, 2));
+    }
+    throw error;
+  }
 };
 
 export const createUser = async (userData: {

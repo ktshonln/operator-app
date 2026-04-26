@@ -27,7 +27,7 @@ export const EditInvitationScreen = () => {
   const [lastName, setLastName] = useState(invitation?.last_name || '');
   const [email, setEmail] = useState(invitation?.email || '');
   const [phone, setPhone] = useState(invitation?.phone_number || '');
-  const [selectedRole, setSelectedRole] = useState(invitation?.role_slug || '');
+  const [selectedRole, setSelectedRole] = useState(invitation?.role_id || '');
   const [selectedLocale, setSelectedLocale] = useState(invitation?.locale || 'en');
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);

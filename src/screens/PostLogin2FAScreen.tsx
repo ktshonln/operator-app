@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { COLORS } from '../theme/colors';
@@ -36,9 +36,26 @@ export const PostLogin2FAScreen: React.FC = () => {
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
-    loadUser();
-    requestOTP();
+    const init = async () => {
+      const userData = await authStore.getPending2FAUser();
+      setUser(userData);
+    };
+    init();
   }, []);
+
+  // Reload user data whenever screen comes into focus (handles re-login attempts)
+  useFocusEffect(
+    React.useCallback(() => {
+      const reload = async () => {
+        const userData = await authStore.getPending2FAUser();
+        if (userData) {
+          setUser(userData);
+          setCode(['', '', '', '', '', '']);
+        }
+      };
+      reload();
+    }, [])
+  );
 
   // Timer for resend functionality
   useEffect(() => {
@@ -51,27 +68,6 @@ export const PostLogin2FAScreen: React.FC = () => {
       setCanResend(true);
     }
   }, [resendTimer]);
-
-  const loadUser = async () => {
-    const userData = await authStore.getUser();
-    console.log('PostLogin2FA - loaded user data:', userData);
-    setUser(userData);
-  };
-
-  const requestOTP = async () => {
-    try {
-      const userIdOrIdentifier = user?.id || user?.identifier;
-      if (userIdOrIdentifier) {
-        await requestPostLogin2FA(userIdOrIdentifier);
-        console.log('Post-login 2FA OTP requested for:', userIdOrIdentifier);
-      } else {
-        console.warn('No user ID or identifier available for OTP request');
-      }
-    } catch (error: any) {
-      console.error('Failed to request post-login 2FA OTP:', error);
-      Alert.alert(t('common.error'), 'Failed to send verification code. Please try again.');
-    }
-  };
 
   const handleChange = (text: string, index: number) => {
     if (text.length > 1) {
@@ -99,7 +95,7 @@ export const PostLogin2FAScreen: React.FC = () => {
       return;
     }
 
-    const userIdOrIdentifier = user?.id || user?.identifier;
+    const userIdOrIdentifier = user?.id;
     if (!userIdOrIdentifier) {
       Alert.alert(t('common.error'), 'User information not found. Please try again.');
       return;
@@ -108,29 +104,45 @@ export const PostLogin2FAScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      // Complete the 2FA verification and get tokens
-      const response = await verifyPostLogin2FA(userIdOrIdentifier, otpCode);
-      
-      // Use AuthContext login method to handle tokens properly
-      if (response.access_token && response.refresh_token && response.user) {
+      let response: any;
+
+      try {
+        response = await verifyPostLogin2FA(userIdOrIdentifier, otpCode, user?.channel, user?.purpose);
+      } catch (firstError: any) {
+        // If email verification says already verified, retry as 2FA login
+        if (firstError?.data?.error?.code === 'EMAIL_ALREADY_VERIFIED' ||
+            (firstError?.status === 409 && user?.purpose === 'verify_email')) {
+          response = await verifyPostLogin2FA(userIdOrIdentifier, otpCode, user?.channel, 'login');
+        } else {
+          throw firstError;
+        }
+      }
+
+      // Unwrap response if needed
+      const verifyData = (response && response.data && !response.access_token) ? response.data : response;
+
+      if (verifyData.access_token && verifyData.refresh_token && verifyData.user) {
         await login({
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-          user: response.user
+          access_token: verifyData.access_token,
+          refresh_token: verifyData.refresh_token,
+          user: verifyData.user
         });
-        
         setLoading(false);
-        
-        // Clear the code
         setCode(['', '', '', '', '', '']);
-        
-        // Navigation will be handled automatically by AuthContext
+      } else if (verifyData.success || verifyData.verified || verifyData.message) {
+        setLoading(false);
+        setCode(['', '', '', '', '', '']);
+        await authStore.clearPending2FAUser();
+        Alert.alert(
+          t('common.success'),
+          'Email verified successfully. Please log in again.',
+          [{ text: 'OK', onPress: () => logout() }]
+        );
       } else {
-        throw new Error('Incomplete 2FA verification response - missing tokens or user data');
+        throw new Error('Incomplete verification response - missing tokens or confirmation');
       }
     } catch (error: any) {
       setLoading(false);
-      console.error('Post-login 2FA verification error:', error);
       Alert.alert(t('common.error'), error.message || t('postLogin2FA.verificationFailed'));
     }
   };
@@ -146,7 +158,7 @@ export const PostLogin2FAScreen: React.FC = () => {
 
     setResendLoading(true);
     try {
-      await requestPostLogin2FA(userIdOrIdentifier);
+      await requestPostLogin2FA(userIdOrIdentifier, user?.channel);
       Alert.alert(t('common.success'), t('postLogin2FA.resendSuccess'));
       setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();

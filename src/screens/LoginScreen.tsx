@@ -23,7 +23,6 @@ import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import { authStore } from '../api/authStore';
 import { Alert } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -32,7 +31,7 @@ const LOGO = require('../assets/images/new.png');
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { t, i18n } = useTranslation();
-  const { login } = useAuth();
+  const { login, set2FARequired } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -108,52 +107,45 @@ export const LoginScreen: React.FC = () => {
         },
       });
 
-      console.log('Login response:', { 
-        hasAccessToken: !!response.access_token, 
-        hasRefreshToken: !!response.refresh_token, 
-        hasUser: !!response.user, 
-        requires2fa: response.requires_2fa,
-        userTwoFactorEnabled: response.user?.two_factor_enabled 
-      });
+      const loginData = (response && response.data && !response.access_token) ? response.data : response;
 
-      // Check if 2FA is required (user has 2FA enabled but no tokens provided)
-      if (response.user?.two_factor_enabled && !response.access_token) {
-        console.log('2FA required - user has 2FA enabled but no tokens provided');
-        // Store user temporarily for 2FA verification
-        await authStore.saveUser(response.user);
-        setLoading(false);
-        
-        // Navigate to 2FA verification screen
-        navigation.navigate('PostLogin2FA');
-        return;
-      }
+      // Handle 2FA/verification — only trigger on explicit backend flags, never guess
+      const needs2FA =
+        loginData.requires_verification ||
+        loginData.require_2fa ||
+        loginData.requires_2fa ||
+        loginData.two_factor_required ||
+        loginData.mfa_required;
 
-      // Check the requires_2fa flag (API indicates 2FA is needed)
-      if (response.requires_2fa) {
-        console.log('2FA required - requires_2fa flag is true');
-        
-        // Store identifier for 2FA verification since user object might not be provided
-        const tempUser = response.user || { 
-          id: response.user_id || 'temp', 
-          identifier: identifier,
-          two_factor_enabled: true 
-        };
-        
-        await authStore.saveUser(tempUser);
+      if (needs2FA) {
+        const userId = loginData.user_id || loginData.user?.id || loginData.id;
+        const channel = loginData.channel || loginData.user?.channel || 'email';
+
+        // Determine purpose:
+        // - server-provided purpose takes priority always
+        // - requires_verification=true (no requires_2fa) → new user verifying email
+        // - requires_2fa=true → existing user doing 2FA login
+        let purpose: string;
+        if (loginData.purpose) {
+          purpose = loginData.purpose;
+        } else if (loginData.requires_verification && !loginData.requires_2fa && !loginData.require_2fa) {
+          purpose = 'verify_email';
+        } else {
+          purpose = 'login';
+        }
+
         setLoading(false);
-        
-        // Navigate to 2FA verification screen
-        navigation.navigate('PostLogin2FA');
+        await set2FARequired({ id: userId, identifier: identifier, channel, purpose });
         return;
       }
 
       // Normal login flow (no 2FA required)
-      if (response.access_token && response.refresh_token && response.user) {
+      if (loginData.access_token && loginData.refresh_token && loginData.user) {
         // Use AuthContext login method
         await login({
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-          user: response.user
+          access_token: loginData.access_token,
+          refresh_token: loginData.refresh_token,
+          user: loginData.user
         });
 
         setLoading(false);

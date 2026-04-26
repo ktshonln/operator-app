@@ -24,6 +24,18 @@ export type RootStackParamList = {
   CreateOrganization: undefined;
   Invitations: undefined;
   EditInvitation: { invitation: any };
+  // Transport
+  LocationsList: undefined;
+  CreateLocation: undefined;
+  LocationDetail: { location: any };
+  RoutesList: undefined;
+  CreateRoute: undefined;
+  RouteDetail: { route: any };
+  PriceMatrix: undefined;
+  TripDetail: { trip: any };
+  BusDetail: { bus: any };
+  CreateBus: undefined;
+  Analytics: undefined;
 };
 
 declare global {

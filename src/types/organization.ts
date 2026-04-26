@@ -3,7 +3,7 @@ export interface Organization {
   name: string;
   slug: string;
   org_type: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'active' | 'approved' | 'rejected' | 'suspended';
   logo_path: string | null;
   contact_email: string;
   contact_phone: string;

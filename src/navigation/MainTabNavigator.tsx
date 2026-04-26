@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 
 import { TicketingScreen } from '../screens/TicketingScreen';
 import { FleetScreen } from '../screens/FleetScreen';
-import { TripScreen } from '../screens/TripScreen';
-import { ReportScreen } from '../screens/ReportScreen';
+import { TripCalendarScreen } from '../screens/TripCalendarScreen';
+import { OperationsScreen } from '../screens/OperationsScreen';
 import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -15,11 +15,11 @@ const Tab = createBottomTabNavigator();
 const TabIcon = ({ name, focused, color }: { name: string, focused: boolean, color: string }) => {
   let iconName = '';
   switch (name) {
-    case 'Ticketing': iconName = 'card'; break;
-    case 'Fleets': iconName = 'bus'; break;
-    case 'Trips': iconName = 'map'; break;
-    case 'Reports': iconName = 'chart'; break;
-    case 'Settings': iconName = 'settings'; break;
+    case 'Ticketing':   iconName = 'card'; break;
+    case 'Fleets':      iconName = 'bus'; break;
+    case 'Trips':       iconName = 'map'; break;
+    case 'Operations':  iconName = 'settings'; break;
+    case 'Reports':     iconName = 'chart'; break;
   }
 
   return (
@@ -60,13 +60,13 @@ export const MainTabNavigator = () => {
       />
       <Tab.Screen
         name="Trips"
-        component={TripScreen}
+        component={TripCalendarScreen}
         options={{ tabBarLabel: t('trips.title') }}
       />
       <Tab.Screen
-        name="Reports"
-        component={ReportScreen}
-        options={{ tabBarLabel: t('reports.title') }}
+        name="Operations"
+        component={OperationsScreen}
+        options={{ tabBarLabel: 'Operations' }}
       />
     </Tab.Navigator>
   );

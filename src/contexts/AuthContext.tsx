@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (tokens: { access_token: string; refresh_token: string; user: any }) => Promise<void>;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  set2FARequired: (user: { id: string; identifier: string; channel: string; purpose?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,9 +38,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = await authStore.getToken();
       const refreshToken = await authStore.getRefreshToken();
       const storedUser = await authStore.getUser();
-      
+      const pending2FAUser = await authStore.getPending2FAUser();
+
+      // Pending 2FA takes priority — explicit flag, not inferred
+      if (pending2FAUser) {
+        setUser(pending2FAUser);
+        setIsAuthenticated(false);
+        setNeeds2FAVerification(true);
+        return;
+      }
+
       const hasTokens = !!(token && refreshToken);
-      
       if (hasTokens) {
         // Verify token is still valid by making a test API call
         try {
@@ -65,13 +74,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setNeeds2FAVerification(false);
           }
         }
-      } else if (storedUser && !hasTokens) {
-        // User exists but no tokens - might be in 2FA flow
-        setUser(storedUser);
-        setIsAuthenticated(false);
-        setNeeds2FAVerification(true);
       } else {
-        // No user and no tokens - logged out
+        // No tokens and no pending 2FA — logged out
         setUser(null);
         setIsAuthenticated(false);
         setNeeds2FAVerification(false);
@@ -84,12 +88,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const set2FARequired = async (pendingUser: { id: string; identifier: string; channel: string; purpose?: string }) => {
+    // Clear any previous auth state before entering 2FA flow
+    await authStore.clearAll();
+    await authStore.savePending2FAUser(pendingUser);
+    setUser(pendingUser);
+    setIsAuthenticated(false);
+    setNeeds2FAVerification(true);
+  };
+
   const login = async (tokens: { access_token: string; refresh_token: string; user: any }) => {
     try {
       await authStore.saveToken(tokens.access_token);
       await authStore.saveRefreshToken(tokens.refresh_token);
       await authStore.saveUser(tokens.user);
       await authStore.set2FAVerified(true);
+      await authStore.clearPending2FAUser(); // clear any pending 2FA state
       
       setUser(tokens.user);
       setIsAuthenticated(true);
@@ -113,13 +127,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
       
-      await authStore.clearAll();
+      await authStore.clearAll(); // clears pending 2FA too
       setUser(null);
       setIsAuthenticated(false);
       setNeeds2FAVerification(false);
     } catch (error) {
       console.error('Error during logout:', error);
-      // Even if there's an error, clear the local state
       setUser(null);
       setIsAuthenticated(false);
       setNeeds2FAVerification(false);
@@ -143,20 +156,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await logout();
     };
 
-    // Check auth status periodically (every 60 seconds instead of 30)
+    // Periodically verify the session is still valid (every 60 seconds)
     const interval = setInterval(async () => {
-      if (isAuthenticated) {
-        try {
-          // Make a lightweight API call to check if tokens are still valid
-          await apiClient('/users/me', { method: 'GET' });
-        } catch (error: any) {
-          if (error.isTokenExpired || error.status === 401) {
-            console.log('Periodic auth check failed, tokens expired');
-            await handleTokenExpiration();
-          }
+      if (!isAuthenticated) return;
+      try {
+        await apiClient('/users/me', { method: 'GET' });
+      } catch (error: any) {
+        // Only log out if the token is definitively expired/invalid
+        // A plain 401 mid-refresh or network blip should not log the user out
+        if (error.isTokenExpired === true) {
+          console.log('Periodic auth check: token expired, logging out...');
+          await handleTokenExpiration();
         }
       }
-    }, 60000); // 60 seconds
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated]);
@@ -169,6 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     checkAuthStatus,
+    set2FARequired,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,6 +4,7 @@ const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'auth_user';
 const TWO_FA_VERIFIED_KEY = 'two_fa_verified';
+const PENDING_2FA_KEY = 'pending_2fa_user';
 
 export const authStore = {
   saveToken: async (token: string) => {
@@ -76,12 +77,40 @@ export const authStore = {
     }
   },
 
+  // Dedicated pending 2FA user — separate from the authenticated user
+  savePending2FAUser: async (user: { id: string; identifier: string; channel: string; purpose?: string }) => {
+    try {
+      await AsyncStorage.setItem(PENDING_2FA_KEY, JSON.stringify(user));
+    } catch (e) {
+      console.error('Error saving pending 2FA user', e);
+    }
+  },
+
+  getPending2FAUser: async () => {
+    try {
+      const user = await AsyncStorage.getItem(PENDING_2FA_KEY);
+      return user ? JSON.parse(user) : null;
+    } catch (e) {
+      console.error('Error getting pending 2FA user', e);
+      return null;
+    }
+  },
+
+  clearPending2FAUser: async () => {
+    try {
+      await AsyncStorage.removeItem(PENDING_2FA_KEY);
+    } catch (e) {
+      console.error('Error clearing pending 2FA user', e);
+    }
+  },
+
   clearAll: async () => {
     try {
       await AsyncStorage.removeItem(TOKEN_KEY);
       await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
       await AsyncStorage.removeItem(USER_KEY);
       await AsyncStorage.removeItem(TWO_FA_VERIFIED_KEY);
+      await AsyncStorage.removeItem(PENDING_2FA_KEY);
     } catch (e) {
       console.error('Error clearing auth store', e);
     }
