@@ -651,11 +651,11 @@ export const getPermissions = async (): Promise<Permission[]> => {
 
 // Role Grant Management API functions
 export const addGrantToRole = async (roleId: string, grantId: string) => {
-  console.log('API Client - Adding grant to role:', { roleId, pattern: grantId });
+  console.log('API Client - Adding grant to role:', { roleId, patterns: [grantId] });
   return apiClient(`/roles/${roleId}/grants`, {
     method: 'POST',
     body: { 
-      pattern: grantId 
+      patterns: [grantId] 
     },
   });
 };

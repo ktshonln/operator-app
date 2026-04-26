@@ -17,7 +17,7 @@ interface TileProps {
 }
 
 const Tile: React.FC<TileProps> = ({ icon, label, count, subtitle, color, onPress }) => (
-  <TouchableOpacity style={[styles.tile, { borderTopColor: color }]} onPress={onPress}>
+  <TouchableOpacity style={styles.tile} onPress={onPress}>
     <View style={[styles.tileIcon, { backgroundColor: color + '18' }]}>
       <Icon name={icon} size={24} color={color} />
     </View>
@@ -38,13 +38,13 @@ interface NavRowProps {
 const NavRow: React.FC<NavRowProps> = ({ icon, label, description, color, onPress }) => (
   <TouchableOpacity style={styles.navRow} onPress={onPress}>
     <View style={[styles.navIcon, { backgroundColor: color + '18' }]}>
-      <Icon name={icon} size={20} color={color} />
+      <Icon name={icon} size={18} color={color} />
     </View>
     <View style={styles.navBody}>
       <Typography variant="body" style={styles.navLabel}>{label}</Typography>
       <Typography variant="caption" color={COLORS.textSecondary}>{description}</Typography>
     </View>
-    <Icon name="chevron-right" size={20} color={COLORS.textMuted} />
+    <Icon name="chevron-right" size={18} color={COLORS.textMuted} />
   </TouchableOpacity>
 );
 
@@ -168,12 +168,12 @@ const styles = StyleSheet.create({
   },
   tilesRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   tile: {
-    flex: 1, backgroundColor: COLORS.white, borderRadius: 16, padding: 16,
-    borderTopWidth: 3, alignItems: 'flex-start',
+    flex: 1, backgroundColor: COLORS.white, borderRadius: 16, padding: 12,
+    alignItems: 'flex-start',
     elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.07, shadowRadius: 4,
   },
-  tileIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  tileIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   tileCount: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
   tileLabel: { fontWeight: '700', marginTop: 2 },
   tileSub: { fontSize: 11, marginTop: 2 },
@@ -183,10 +183,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07, shadowRadius: 4,
   },
   navRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', padding: 12,
   },
-  navIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  navIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   navBody: { flex: 1 },
   navLabel: { fontWeight: '700', marginBottom: 2 },
   warningBox: {
