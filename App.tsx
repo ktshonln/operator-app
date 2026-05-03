@@ -30,6 +30,7 @@ import { CreateOrganizationScreen } from './src/screens/CreateOrganizationScreen
 import { AllUsersScreen } from './src/screens/AllUsersScreen';
 import { InvitationsScreen } from './src/screens/InvitationsScreen';
 import { EditInvitationScreen } from './src/screens/EditInvitationScreen';
+import { PrintTicketDemoScreen } from './src/screens/PrintTicketDemoScreen';
 import { LocationsListScreen } from './src/screens/LocationsListScreen';
 import { CreateLocationScreen } from './src/screens/CreateLocationScreen';
 import { LocationDetailScreen } from './src/screens/LocationDetailScreen';
@@ -90,6 +91,7 @@ function AppStack() {
       <Stack.Screen name="AllUsers" component={AllUsersScreen} />
       <Stack.Screen name="Invitations" component={InvitationsScreen} />
       <Stack.Screen name="EditInvitation" component={EditInvitationScreen} />
+      <Stack.Screen name="PrintTicketDemo" component={PrintTicketDemoScreen} />
       {/* Transport */}
       <Stack.Screen name="LocationsList" component={LocationsListScreen} />
       <Stack.Screen name="CreateLocation" component={CreateLocationScreen} />

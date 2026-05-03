@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Katisha App Icon Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        .icon-preview { display: flex; gap: 20px; align-items: center; margin: 20px 0; }
+        .icon { border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        canvas { border: 2px solid #ddd; }
+        button { background: #2563EB; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin: 10px 5px; }
+        button:hover { background: #1d4ed8; }
+        .size-label { font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Katisha App Icon Generator</h1>
+        <p>Clean, professional icon with large "K" and subtle bus symbol</p>
+        
+        <div class="icon-preview">
+            <div>
+                <canvas id="icon1024" width="1024" height="1024" class="icon"></canvas>
+                <div class="size-label">1024x1024 (Main Icon)</div>
+            </div>
+            <div>
+                <canvas id="icon192" width="192" height="192" class="icon"></canvas>
+                <div class="size-label">192x192 (Preview)</div>
+            </div>
+            <div>
+                <canvas id="icon48" width="48" height="48" class="icon"></canvas>
+                <div class="size-label">48x48 (Small)</div>
+            </div>
+        </div>
+        
+        <button onclick="generateIcon()">Generate Icon</button>
+        <button onclick="downloadIcon()">Download 1024x1024 PNG</button>
+        
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Click "Generate Icon" to create the icon</li>
+            <li>Click "Download 1024x1024 PNG" to save the file</li>
+            <li>Replace your current icon file at <code>src/assets/images/new.png</code></li>
+            <li>Rebuild your app to see the new icon</li>
+        </ol>
+    </div>
+
+    <script>
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background - Brand Blue
+            ctx.fillStyle = '#2563EB';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Main "K" letter
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `bold ${size * 0.6}px Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('K', size * 0.5, size * 0.5);
+            
+            // Subtle bus icon in bottom right corner
+            const busSize = size * 0.25;
+            const busX = size * 0.75 - busSize * 0.5;
+            const busY = size * 0.75 - busSize * 0.5;
+            
+            // Bus body (rounded rectangle)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.roundRect(busX - busSize * 0.4, busY - busSize * 0.2, busSize * 0.8, busSize * 0.4, busSize * 0.1);
+            ctx.fill();
+            
+            // Bus windows
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            const windowWidth = busSize * 0.15;
+            const windowHeight = busSize * 0.2;
+            const windowY = busY - busSize * 0.1;
+            
+            // Front window
+            ctx.fillRect(busX - busSize * 0.3, windowY, windowWidth, windowHeight);
+            // Middle windows
+            ctx.fillRect(busX - busSize * 0.1, windowY, windowWidth, windowHeight);
+            ctx.fillRect(busX + busSize * 0.1, windowY, windowWidth, windowHeight);
+            
+            // Bus wheels
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            const wheelRadius = busSize * 0.08;
+            const wheelY = busY + busSize * 0.15;
+            
+            ctx.beginPath();
+            ctx.arc(busX - busSize * 0.2, wheelY, wheelRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(busX + busSize * 0.2, wheelY, wheelRadius, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+        
+        function generateIcon() {
+            drawIcon(document.getElementById('icon1024'), 1024);
+            drawIcon(document.getElementById('icon192'), 192);
+            drawIcon(document.getElementById('icon48'), 48);
+        }
+        
+        function downloadIcon() {
+            const canvas = document.getElementById('icon1024');
+            const link = document.createElement('a');
+            link.download = 'katisha-icon-1024.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Auto-generate on page load
+        window.onload = generateIcon;
+    </script>
+</body>
+</html>

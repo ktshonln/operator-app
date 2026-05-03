@@ -49,7 +49,12 @@ export const CreateBusScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Add Bus" showBack onBack={() => navigation.goBack()} />
+      <Header 
+        title="Add Bus" 
+        showBack 
+        onBack={() => navigation.goBack()} 
+        rightElement={<View />}
+      />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         {/* Plate */}

@@ -176,3 +176,81 @@ export const MOCK_BUSES: Bus[] = [
   { id: 'bus-7', plate: 'RAG 007 G', type: 'Sprinter', capacity: 20, status: 'active', driver: { id: 'drv-5', first_name: 'Paul', last_name: 'Nkurunziza', avatar_path: null }, org: { id: 'org-1', name: 'Volcano Express' }, created_at: '2026-04-20T08:00:00Z' },
   { id: 'bus-8', plate: 'RAH 008 H', type: 'Coach', capacity: 45, status: 'active', driver: { id: 'drv-6', first_name: 'Grace', last_name: 'Uwase', avatar_path: null }, org: { id: 'org-1', name: 'Volcano Express' }, created_at: '2026-04-20T08:00:00Z' },
 ];
+
+// ── Tickets ────────────────────────────────────────────────────────────────
+export interface MockTicket {
+  id: string;
+  passenger_name: string;
+  passenger_phone: string;
+  from_location: string;
+  to_location: string;
+  departure_date: string;
+  departure_time: string;
+  seats_count: number;
+  total_amount: number;
+  payment_method: string;
+  bus_plate?: string;
+  driver_name?: string;
+  issued_by?: string;
+  created_at: string;
+  updated_at: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  trip_id: string;
+}
+
+export const MOCK_TICKETS: MockTicket[] = [
+  {
+    id: 'ticket-1',
+    passenger_name: 'Kalisa Nkusi',
+    passenger_phone: '+250788***456',
+    from_location: 'Kigali',
+    to_location: 'Musanze',
+    departure_date: '20 Apr 2026',
+    departure_time: '08:00 AM',
+    seats_count: 2,
+    total_amount: 4000,
+    payment_method: 'Cash',
+    bus_plate: 'RAA 001 A',
+    driver_name: 'Jean Uwimana',
+    issued_by: 'Alice M.',
+    created_at: '2026-04-20T06:30:00Z',
+    updated_at: '2026-04-20T06:30:00Z',
+    status: 'confirmed',
+    trip_id: 'trip-1',
+  },
+  {
+    id: 'ticket-2',
+    passenger_name: 'Marie Uwase',
+    passenger_phone: '+250788***789',
+    from_location: 'Kigali',
+    to_location: 'Gisenyi',
+    departure_date: '20 Apr 2026',
+    departure_time: '10:00 AM',
+    seats_count: 1,
+    total_amount: 4000,
+    payment_method: 'Mobile Money',
+    bus_plate: 'RAB 002 B',
+    driver_name: 'Alice Mukamana',
+    created_at: '2026-04-20T09:15:00Z',
+    updated_at: '2026-04-20T09:15:00Z',
+    status: 'confirmed',
+    trip_id: 'trip-2',
+  },
+  {
+    id: 'ticket-3',
+    passenger_name: 'Eric Habimana',
+    passenger_phone: '+250788***123',
+    from_location: 'Kigali',
+    to_location: 'Huye',
+    departure_date: '20 Apr 2026',
+    departure_time: '11:15 AM',
+    seats_count: 1,
+    total_amount: 3000,
+    payment_method: 'Card',
+    bus_plate: 'RAC 003 C',
+    created_at: '2026-04-20T10:45:00Z',
+    updated_at: '2026-04-20T10:45:00Z',
+    status: 'completed',
+    trip_id: 'trip-3',
+  },
+];

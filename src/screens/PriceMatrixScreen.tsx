@@ -71,7 +71,12 @@ export const PriceMatrixScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Price Matrix" showBack onBack={() => navigation.goBack()} />
+      <Header 
+        title="Price Matrix" 
+        showBack 
+        onBack={() => navigation.goBack()} 
+        rightElement={<View />}
+      />
 
       <View style={styles.filters}>
         <View style={styles.filterInput}>

@@ -25,6 +25,7 @@ export type RootStackParamList = {
   CreateOrganization: undefined;
   Invitations: undefined;
   EditInvitation: { invitation: any };
+  PrintTicketDemo: undefined;
   // Transport
   LocationsList: undefined;
   CreateLocation: undefined;

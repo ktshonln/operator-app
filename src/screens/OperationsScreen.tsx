@@ -18,12 +18,18 @@ interface TileProps {
 
 const Tile: React.FC<TileProps> = ({ icon, label, count, subtitle, color, onPress }) => (
   <TouchableOpacity style={styles.tile} onPress={onPress}>
-    <View style={[styles.tileIcon, { backgroundColor: color + '18' }]}>
-      <Icon name={icon} size={24} color={color} />
+    <View style={styles.tileContent}>
+      <View style={[styles.tileIcon, { backgroundColor: color + '18' }]}>
+        <Icon name={icon} size={20} color={color} />
+      </View>
+      <View style={styles.tileBody}>
+        <View style={styles.tileHeader}>
+          <Typography variant="body" style={[styles.tileCount, { color }]}>{count}</Typography>
+          <Typography variant="caption" style={styles.tileLabel}>{label}</Typography>
+        </View>
+        <Typography variant="caption" color={COLORS.textMuted} style={styles.tileSub}>{subtitle}</Typography>
+      </View>
     </View>
-    <Typography variant="body" style={[styles.tileCount, { color }]}>{count}</Typography>
-    <Typography variant="body" style={styles.tileLabel}>{label}</Typography>
-    <Typography variant="caption" color={COLORS.textMuted} style={styles.tileSub}>{subtitle}</Typography>
   </TouchableOpacity>
 );
 
@@ -44,7 +50,7 @@ const NavRow: React.FC<NavRowProps> = ({ icon, label, description, color, onPres
       <Typography variant="body" style={styles.navLabel}>{label}</Typography>
       <Typography variant="caption" color={COLORS.textSecondary}>{description}</Typography>
     </View>
-    <Icon name="chevron-right" size={18} color={COLORS.textMuted} />
+    <Icon name="chevron-right" size={16} color={COLORS.textMuted} />
   </TouchableOpacity>
 );
 
@@ -103,7 +109,7 @@ export const OperationsScreen: React.FC = () => {
         </View>
 
         {/* Quick navigation */}
-        <Typography variant="caption" style={[styles.sectionLabel, { marginTop: 24 }]}>MANAGE</Typography>
+        <Typography variant="caption" style={[styles.sectionLabel, { marginTop: 20 }]}>MANAGE</Typography>
         <View style={styles.navCard}>
           <NavRow
             icon="map"
@@ -140,6 +146,13 @@ export const OperationsScreen: React.FC = () => {
             color="#EF4444"
             onPress={() => navigation.navigate('Main', { screen: 'Trips' })}
           />
+          <NavRow
+            icon="printer"
+            label="Print Ticket Demo"
+            description="Test ticket printing functionality"
+            color="#6366F1"
+            onPress={() => navigation.navigate('PrintTicketDemo')}
+          />
         </View>
 
         {/* Warnings */}
@@ -169,31 +182,44 @@ const styles = StyleSheet.create({
     fontWeight: '700', color: COLORS.textSecondary, fontSize: 11,
     letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
   },
-  tilesRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  tilesRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   tile: {
-    flex: 1, backgroundColor: COLORS.white, borderRadius: 16, padding: 12,
-    alignItems: 'flex-start',
+    flex: 1, backgroundColor: COLORS.white, borderRadius: 14, padding: 14,
     elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.07, shadowRadius: 4,
+    minHeight: 80, // Increased height for better balance
   },
-  tileIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  tileCount: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
-  tileLabel: { fontWeight: '700', marginTop: 2 },
-  tileSub: { fontSize: 11, marginTop: 2 },
+  tileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tileIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  tileBody: {
+    flex: 1,
+  },
+  tileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  tileCount: { fontSize: 20, fontWeight: '800', lineHeight: 22 },
+  tileLabel: { fontWeight: '600', fontSize: 14 },
+  tileSub: { fontSize: 11, marginTop: 1, lineHeight: 14 },
   navCard: {
-    backgroundColor: COLORS.white, borderRadius: 16, overflow: 'hidden',
+    backgroundColor: COLORS.white, borderRadius: 14, overflow: 'hidden',
     elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.07, shadowRadius: 4,
   },
   navRow: {
     flexDirection: 'row', alignItems: 'center', padding: 12,
   },
-  navIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  navIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   navBody: { flex: 1 },
-  navLabel: { fontWeight: '700', marginBottom: 2 },
+  navLabel: { fontWeight: '600', marginBottom: 2, fontSize: 14 },
   warningBox: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8E1',
-    borderRadius: 14, padding: 14, marginTop: 16,
+    borderRadius: 12, padding: 12, marginTop: 16,
     borderWidth: 1, borderColor: '#FFE082',
   },
 });

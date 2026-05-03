@@ -43,6 +43,10 @@ import {
   RefreshCw,
   Clock,
   Ban,
+  Printer,
+  MapPin,
+  Navigation,
+  Share,
 } from 'lucide-react-native';
 import { COLORS } from '../theme/colors';
 
@@ -89,7 +93,12 @@ export type IconName =
   | 'refresh-cw'
   | 'clock'
   | 'x-circle'
-  | 'ban';
+  | 'ban'
+  | 'printer'
+  | 'x'
+  | 'map-pin'
+  | 'navigation'
+  | 'share';
 
 interface IconProps {
   name: IconName;
@@ -142,6 +151,11 @@ const iconMap = {
   'clock': Clock,
   'x-circle': XCircle,
   'ban': Ban,
+  'printer': Printer,
+  'x': X,
+  'map-pin': MapPin,
+  'navigation': Navigation,
+  'share': Share,
 };
 
 export const Icon: React.FC<IconProps> = ({ 

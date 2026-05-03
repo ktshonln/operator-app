@@ -27,7 +27,12 @@ export const RouteDetailScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title={routeData.name} showBack onBack={() => navigation.goBack()} />
+      <Header 
+        title={routeData.name} 
+        showBack 
+        onBack={() => navigation.goBack()} 
+        rightElement={<View />}
+      />
       <ScrollView contentContainerStyle={styles.content}>
 
         {/* Status badge */}

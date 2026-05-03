@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { COLORS } from '../theme/colors';
-import { MOCK_TRIPS, MOCK_BUSES, MOCK_ROUTES } from '../mock/transportData';
+import { MOCK_TRIPS, MOCK_BUSES, MOCK_ROUTES, MOCK_PRICES } from '../mock/transportData';
 
 const StatCard = ({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) => (
   <View style={[styles.statCard, { borderTopColor: color }]}>
@@ -36,8 +36,35 @@ export const AnalyticsScreen: React.FC = () => {
   const activeBuses = MOCK_BUSES.filter(b => b.status === 'active').length;
   const activeRoutes = MOCK_ROUTES.filter(r => r.status === 'active').length;
 
-  // Revenue mock
-  const revenue = totalBookedSeats * 3200;
+  // Revenue calculation based on actual route prices
+  const calculateRevenue = () => {
+    let totalRevenue = 0;
+    
+    MOCK_TRIPS.forEach(trip => {
+      if (trip.booked_seats > 0) {
+        // Find the route price for this trip
+        let routePrice = 3200; // default fallback
+        
+        // Get route-specific pricing from MOCK_PRICES
+        const routePricing = MOCK_PRICES.find(p => 
+          (p.boarding_stop.name === trip.route.name.split(' — ')[0] && 
+           p.alighting_stop.name === trip.route.name.split(' — ')[1]) ||
+          (p.boarding_stop.name === trip.route.name.split(' — ')[1] && 
+           p.alighting_stop.name === trip.route.name.split(' — ')[0])
+        );
+        
+        if (routePricing) {
+          routePrice = routePricing.amount;
+        }
+        
+        totalRevenue += trip.booked_seats * routePrice;
+      }
+    });
+    
+    return totalRevenue;
+  };
+  
+  const revenue = calculateRevenue();
 
   // Trips per route
   const tripsPerRoute = MOCK_ROUTES.map(r => ({
@@ -48,13 +75,21 @@ export const AnalyticsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Analytics" showBack onBack={() => navigation.goBack()} />
+      <Header 
+        title="Analytics" 
+        showBack 
+        onBack={() => navigation.goBack()} 
+        rightElement={<View />}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         <Typography variant="caption" style={styles.sectionLabel}>OVERVIEW</Typography>
         <View style={styles.statsGrid}>
           <StatCard label="Total Trips" value={String(totalTrips)} sub="All time" color={COLORS.brand} />
           <StatCard label="Completed" value={String(completedTrips)} sub="Finished trips" color="#10B981" />
+        </View>
+        
+        <View style={styles.statsGrid}>
           <StatCard label="Scheduled" value={String(scheduledTrips)} sub="Upcoming" color="#F59E0B" />
           <StatCard label="Occupancy" value={`${occupancyRate}%`} sub={`${totalBookedSeats}/${totalSeats} seats`} color="#8B5CF6" />
         </View>
@@ -66,11 +101,13 @@ export const AnalyticsScreen: React.FC = () => {
 
         {/* Revenue */}
         <View style={styles.revenueCard}>
-          <Typography variant="caption" style={styles.sectionLabel}>ESTIMATED REVENUE</Typography>
-          <Typography style={{ fontSize: 32, fontWeight: '800', color: COLORS.brand }}>
+          <Typography variant="caption" style={[styles.sectionLabel, { marginBottom: 8 }]}>ESTIMATED REVENUE</Typography>
+          <Typography style={styles.revenueAmount}>
             {revenue.toLocaleString()} RWF
           </Typography>
-          <Typography variant="caption" color={COLORS.textSecondary}>Based on {totalBookedSeats} booked seats × avg 3,200 RWF</Typography>
+          <Typography variant="caption" color={COLORS.textSecondary} style={{ marginTop: 4 }}>
+            Based on actual route pricing for {totalBookedSeats} booked seats
+          </Typography>
         </View>
 
         {/* Trips per route */}
@@ -98,12 +135,32 @@ export const AnalyticsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 40 },
+  content: { padding: 16, paddingBottom: 40, paddingTop: 20 },
   sectionLabel: { fontWeight: '700', color: COLORS.textSecondary, fontSize: 11, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' },
-  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: COLORS.white, borderRadius: 14, padding: 14, borderTopWidth: 3, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
-  revenueCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
-  card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
+  revenueCard: { 
+    backgroundColor: COLORS.white, 
+    borderRadius: 16, 
+    padding: 20, 
+    marginBottom: 20, 
+    marginTop: 8, 
+    elevation: 2, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.07, 
+    shadowRadius: 4,
+    minHeight: 100,
+    justifyContent: 'center'
+  },
+  revenueAmount: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: COLORS.brand,
+    lineHeight: 38,
+    textAlign: 'left'
+  },
+  card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
   cardTitle: { fontWeight: '700', marginBottom: 14 },
   barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   barLabel: { width: 110, color: COLORS.textSecondary, fontSize: 12 },

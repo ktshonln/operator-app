@@ -54,7 +54,12 @@ export const CreateRouteScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Create Route" showBack onBack={() => navigation.goBack()} />
+      <Header 
+        title="Create Route" 
+        showBack 
+        onBack={() => navigation.goBack()} 
+        rightElement={<View />}
+      />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <Typography variant="caption" style={styles.label}>Route Name (optional)</Typography>
