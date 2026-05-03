@@ -4,10 +4,10 @@
     "slug": "katisha-operator",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/images/new.png",
+    "icon": "./src/assets/images/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./src/assets/images/new.png",
+      "image": "./src/assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/images/new.png",
+        "foregroundImage": "./src/assets/images/icon.png",
         "backgroundColor": "#2563EB"
       },
       "package": "online.katisha.operator",
@@ -40,7 +40,7 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "favicon": "./src/assets/images/new.png"
+      "favicon": "./src/assets/images/icon.png"
     },
     "extra": {
       "eas": {
