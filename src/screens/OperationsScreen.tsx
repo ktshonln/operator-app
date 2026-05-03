@@ -57,7 +57,10 @@ export const OperationsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Operations" />
+      <Header 
+        title="Operations" 
+        rightElement={<View />}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Summary tiles */}

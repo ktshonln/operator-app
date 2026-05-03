@@ -18,7 +18,7 @@ const TabIcon = ({ name, focused, color }: { name: string, focused: boolean, col
     case 'Ticketing':   iconName = 'card'; break;
     case 'Fleets':      iconName = 'bus'; break;
     case 'Trips':       iconName = 'map'; break;
-    case 'Operations':  iconName = 'settings'; break;
+    case 'Operations':  iconName = 'business'; break; // Changed from 'settings' to 'business'
     case 'Reports':     iconName = 'chart'; break;
   }
 

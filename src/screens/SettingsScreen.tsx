@@ -302,6 +302,32 @@ export const SettingsScreen: React.FC = () => {
         title={t('settings.title')} 
         showBack={true} 
         onBack={() => navigation.goBack()}
+        rightElement={
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => {
+                // TODO: Implement search functionality
+                console.log('Search pressed');
+              }}
+            >
+              <Icon name="search" size={20} color={COLORS.brand} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <Icon name="notifications" size={20} color={COLORS.brand} />
+              {notificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Typography variant="caption" color={COLORS.white} style={styles.badgeText}>
+                    {notificationCount > 99 ? '99+' : notificationCount.toString()}
+                  </Typography>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        }
       />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.profileSection}>
@@ -349,49 +375,6 @@ export const SettingsScreen: React.FC = () => {
           title={t('settings.profile')} 
           icon="person" 
           onPress={() => navigation.navigate('Profile')}
-        />
-        
-        {/* Organization - Show if user can view or manage organizations */}
-        {(canViewOrganizations || canManageOrganizations) && (
-          <SettingItem 
-            title={isPlatformAdmin ? t('platformAdmin.allOrganizations') : "Organization"}
-            icon="business" 
-            onPress={() => navigation.navigate(isPlatformAdmin ? 'AllOrganizations' : 'Organization')}
-          />
-        )}
-        
-        {/* User Management - Only for users who can manage users */}
-        {canManageUsers && (
-          <SettingItem 
-            title={isPlatformAdmin ? t('platformAdmin.allUsers') : "User Management"}
-            icon="users" 
-            onPress={() => navigation.navigate(isPlatformAdmin ? 'AllUsers' : 'UsersList')}
-          />
-        )}
-        
-        {/* Invitations - Only for users who can manage users */}
-        {canManageUsers && (
-          <SettingItem 
-            title="Pending Invitations"
-            icon="mail" 
-            onPress={() => navigation.navigate('Invitations')}
-          />
-        )}
-        
-        {/* Role Management - Only for users who can manage roles */}
-        {canManageRoles && (
-          <SettingItem 
-            title={isPlatformAdmin ? t('platformAdmin.allRoles') : "Role Management"}
-            icon="shield" 
-            onPress={() => navigation.navigate('RoleManagement')}
-          />
-        )}
-        
-        {/* My Permissions - Always available */}
-        <SettingItem 
-          title="My Permissions" 
-          icon="shield-check" 
-          onPress={() => navigation.navigate('UserPermissions')}
         />
         
         <SettingItem 
@@ -590,5 +573,35 @@ const styles = StyleSheet.create({
   roleTitle: {
     marginLeft: 8,
     fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerButton: {
+    backgroundColor: COLORS.brand + '15',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });

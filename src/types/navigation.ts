@@ -18,6 +18,7 @@ export type RootStackParamList = {
   PostLogin2FA: undefined;
   RoleManagement: undefined;
   UserPermissions: undefined;
+  UserManagement: undefined;
   LoginChannel: undefined;
   AllOrganizations: undefined;
   AllUsers: undefined;

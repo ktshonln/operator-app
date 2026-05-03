@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
+import { Icon } from '../components/Icon';
+import { PopupMenu } from '../components/PopupMenu';
 import { COLORS } from '../theme/colors';
 import { Header } from '../components/Header';
+import { useMainMenu } from '../hooks/useMainMenu';
 
 const TICKETS = [
   { id: '1', route: 'Kgl - Msz', time: '08:30 AM', price: '2,500', statusKey: 'ticketing.statusBooked' },
@@ -13,6 +16,7 @@ const TICKETS = [
 
 export const TicketingScreen: React.FC = () => {
   const { t } = useTranslation();
+  const { getMenuItems } = useMainMenu();
   const [search, setSearch] = useState('');
   
   const filteredTickets = TICKETS.filter(ticket =>
@@ -35,7 +39,28 @@ export const TicketingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Header title={t('ticketing.title')} onSearch={setSearch} />
+      <Header 
+        title={t('ticketing.title')} 
+        onSearch={setSearch}
+        rightElement={
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => {
+                // TODO: Implement search functionality
+                console.log('Search pressed');
+              }}
+            >
+              <Icon name="search" size={20} color={COLORS.brand} />
+            </TouchableOpacity>
+            <PopupMenu items={getMenuItems()}>
+              <View style={styles.menuButton}>
+                <Icon name="more" size={20} color={COLORS.brand} />
+              </View>
+            </PopupMenu>
+          </View>
+        }
+      />
       <FlatList
         data={filteredTickets}
         renderItem={renderItem}
@@ -88,5 +113,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.brand,
+  },
+  menuButton: {
+    backgroundColor: COLORS.brand + '15',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerButton: {
+    backgroundColor: COLORS.brand + '15',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

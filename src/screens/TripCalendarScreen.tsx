@@ -103,7 +103,10 @@ export const TripCalendarScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Trip Calendar" />
+      <Header 
+        title="Trip Calendar" 
+        rightElement={<View />}
+      />
 
       {/* Route selector */}
       <TouchableOpacity style={styles.routeSelector} onPress={() => setShowRoutePicker(!showRoutePicker)}>

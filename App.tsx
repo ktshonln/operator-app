@@ -23,6 +23,7 @@ import { TwoFactorScreen } from './src/screens/TwoFactorScreen';
 import { PostLogin2FAScreen } from './src/screens/PostLogin2FAScreen';
 import { RoleManagementScreen } from './src/screens/RoleManagementScreen';
 import { UserPermissionsScreen } from './src/screens/UserPermissionsScreen';
+import { UserManagementScreen } from './src/screens/UserManagementScreen';
 import { LoginChannelScreen } from './src/screens/LoginChannelScreen';
 import { AllOrganizationsScreen } from './src/screens/AllOrganizationsScreen';
 import { CreateOrganizationScreen } from './src/screens/CreateOrganizationScreen';
@@ -82,6 +83,7 @@ function AppStack() {
       <Stack.Screen name="TwoFactor" component={TwoFactorScreen} />
       <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
       <Stack.Screen name="UserPermissions" component={UserPermissionsScreen} />
+      <Stack.Screen name="UserManagement" component={UserManagementScreen} />
       <Stack.Screen name="LoginChannel" component={LoginChannelScreen} />
       <Stack.Screen name="AllOrganizations" component={AllOrganizationsScreen} />
       <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
