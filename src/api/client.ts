@@ -177,6 +177,24 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         errorMessage = data.message;
       }
 
+      // Log full error details for debugging
+      if (__DEV__) {
+        console.error('Full API Error Details:', {
+          url,
+          method,
+          status: response.status,
+          errorCode: data?.error?.code,
+          errorMessage: data?.error?.message,
+          errorDetails: data?.error?.details,
+          fullData: data,
+        });
+        
+        // For 500 errors, remind developer to check backend logs
+        if (response.status === 500) {
+          console.warn('⚠️ 500 Internal Server Error - Check your backend server logs for the actual error details');
+        }
+      }
+
       throw {
         status: response.status,
         message: errorMessage,
@@ -220,20 +238,28 @@ export const getMyOrganization = async (): Promise<Organization> => {
 };
 
 export const getAllOrganizations = async () => {
-  const response = await apiClient('/organizations', { method: 'GET' });
-  
-  // Handle paginated response
-  if (response && response.data && Array.isArray(response.data)) {
-    return response.data;
-  }
-  
-  // If it's already an array, return as is
-  if (Array.isArray(response)) {
-    return response;
-  }
-  
-  // Fallback
-  return [];
+  const allOrgs: any[] = [];
+  let page = 1;
+  let total = 0;
+  const limit = 100;
+
+  do {
+    const response = await apiClient(`/organizations?page=${page}&limit=${limit}`, { method: 'GET' });
+
+    let batch: any[] = [];
+    if (response?.data && Array.isArray(response.data)) {
+      batch = response.data;
+      total = response.total ?? batch.length;
+    } else if (Array.isArray(response)) {
+      batch = response;
+      total = batch.length;
+    }
+
+    allOrgs.push(...batch);
+    page += 1;
+  } while (allOrgs.length < total);
+
+  return allOrgs;
 };
 
 export const createOrganization = async (orgData: {
@@ -848,6 +874,7 @@ export const cancelInvitation = async (invitationId: string) => {
     method: 'DELETE',
   });
 };
+
 export const getAvatarPresignedUrl = async (contentType: string) => {
   return apiClient(`/users/me/avatar/presigned-url?content_type=${encodeURIComponent(contentType)}`, {
     method: 'GET',

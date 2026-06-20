@@ -104,6 +104,7 @@ export const LoginScreen: React.FC = () => {
           identifier: identifier,
           password: password,
           device_name: `${Platform.OS}_${Platform.Version || 'device'}`,
+          user_type: 'staff',
         },
       });
 

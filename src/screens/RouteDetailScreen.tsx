@@ -1,20 +1,45 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { Route } from '../mock/transportData';
+import { getRouteById } from '../api';
 
 export const RouteDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const routeParam = useRoute<any>();
-  const routeData: Route = routeParam.params?.route;
-  const [status, setStatus] = useState(routeData.status);
+  const routeId: string = routeParam.params?.route?.id;
+  const [routeData, setRouteData] = useState<Route | null>(routeParam.params?.route ?? null);
+  const [status, setStatus] = useState(routeParam.params?.route?.status ?? 'inactive');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!routeId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      try {
+        setLoading(true);
+        const data = await getRouteById(routeId);
+        setRouteData(data);
+        setStatus(data.status);
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to load route details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRoute();
+  }, [routeId]);
 
   const toggleStatus = () => {
-    if (!routeData.prices_complete && status === 'inactive') {
+    if (routeData?.prices_complete === false && status === 'inactive') {
       Alert.alert('Cannot Activate', 'All stop-pair prices must be defined before activating this route.');
       return;
     }
@@ -24,6 +49,21 @@ export const RouteDetailScreen: React.FC = () => {
       { text: 'Confirm', onPress: () => setStatus(next) },
     ]);
   };
+
+  if (loading || !routeData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header title="Route" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const stops = routeData.stops ?? [];
+  const originName = routeData.origin?.name ?? stops[0]?.name ?? '—';
+  const destinationName = routeData.destination?.name ?? stops[stops.length - 1]?.name ?? '—';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,28 +101,31 @@ export const RouteDetailScreen: React.FC = () => {
         {/* Stops list */}
         <View style={styles.card}>
           <Typography variant="body" style={styles.sectionTitle}>Ordered Stops</Typography>
-          {routeData.stops.map((stop, idx) => (
+          {stops.map((stop, idx) => (
             <View key={stop.id} style={styles.stopRow}>
               <View style={styles.stopLine}>
                 <View style={styles.stopDot} />
-                {idx < routeData.stops.length - 1 && <View style={styles.stopConnector} />}
+                {idx < stops.length - 1 && <View style={styles.stopConnector} />}
               </View>
               <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>{stop.name}</Typography>
               <Typography variant="caption" color={COLORS.textMuted}>#{stop.order}</Typography>
             </View>
           ))}
+          {stops.length === 0 && (
+            <Typography variant="caption" color={COLORS.textMuted}>No stops loaded.</Typography>
+          )}
         </View>
 
         {/* Info */}
         <View style={styles.card}>
-          <Row label="Organisation" value={routeData.org.name} />
-          <Row label="Origin" value={routeData.origin.name} />
-          <Row label="Destination" value={routeData.destination.name} />
+          <Row label="Organisation" value={routeData.org?.name ?? 'N/A'} />
+          <Row label="Origin" value={originName} />
+          <Row label="Destination" value={destinationName} />
           <Row label="Created" value={new Date(routeData.created_at).toLocaleDateString()} />
         </View>
 
         {/* Price matrix link */}
-        {!routeData.prices_complete && (
+        {routeData.prices_complete === false && (
           <View style={styles.warningBox}>
             <Icon name="alert" size={18} color="#F57C00" />
             <Typography variant="caption" style={{ color: '#F57C00', marginLeft: 8, flex: 1 }}>
@@ -110,6 +153,7 @@ const Row = ({ label, value }: { label: string; value: string }) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },

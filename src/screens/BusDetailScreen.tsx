@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { Bus, MOCK_TRIPS } from '../mock/transportData';
+import { Bus } from '../mock/transportData';
+import { getBusById, updateBus, getBusTrips, BusTrip } from '../api';
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
   active:      { bg: '#ECFDF5', text: '#10B981', label: 'ACTIVE' },
@@ -18,55 +19,130 @@ const TYPE_ICON: Record<string, string> = { Coach: '🚌', Mini: '🚐', Sprinte
 export const BusDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const routeParam = useRoute<any>();
-  const bus: Bus = routeParam.params?.bus;
+  const busId: string = routeParam.params?.bus?.id;
 
-  const [status, setStatus] = useState(bus.status);
+  const [busData, setBusData] = useState<Bus | null>(routeParam.params?.bus ?? null);
+  const [status, setStatus] = useState<Bus['status']>(routeParam.params?.bus?.status ?? 'active');
   const [editing, setEditing] = useState(false);
-  const [plate, setPlate] = useState(bus.plate);
-  const [capacity, setCapacity] = useState(String(bus.capacity));
+  const [plate, setPlate] = useState(routeParam.params?.bus?.plate ?? '');
+  const [capacity, setCapacity] = useState(String(routeParam.params?.bus?.capacity ?? ''));
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [assignedTrips, setAssignedTrips] = useState<BusTrip[]>([]);
 
-  // Trips assigned to this bus
-  const assignedTrips = MOCK_TRIPS.filter(t => t.bus.plate === bus.plate).slice(0, 5);
+  useEffect(() => {
+    if (!busId) {
+      setLoading(false);
+      return;
+    }
 
-  const handleSave = () => {
-    if (!plate.trim()) { Alert.alert('Validation', 'Plate is required.'); return; }
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [bus, trips] = await Promise.all([
+          getBusById(busId),
+          getBusTrips(busId, 5),
+        ]);
+        setBusData(bus);
+        setStatus(bus.status);
+        setPlate(bus.plate);
+        setCapacity(String(bus.capacity));
+        setAssignedTrips(trips);
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to load bus details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [busId]);
+
+  const handleSave = async () => {
+    if (!plate.trim()) {
+      Alert.alert('Validation', 'Plate is required.');
+      return;
+    }
+    const capacityNum = parseInt(capacity, 10);
+    if (isNaN(capacityNum) || capacityNum <= 0) {
+      Alert.alert('Validation', 'Enter a valid capacity.');
+      return;
+    }
+
     setSaving(true);
-    setTimeout(() => { setSaving(false); setEditing(false); }, 600);
+    try {
+      const updated = await updateBus(busId, {
+        plate: plate.trim().toUpperCase(),
+        capacity: capacityNum,
+      });
+      setBusData(updated);
+      setPlate(updated.plate);
+      setCapacity(String(updated.capacity));
+      setEditing(false);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to update bus';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleStatusChange = (next: Bus['status']) => {
+  const handleStatusChange = (next: 'active' | 'inactive') => {
     Alert.alert('Update Status', `Set bus to "${next}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => setStatus(next) },
+      {
+        text: 'Confirm',
+        onPress: async () => {
+          try {
+            const updated = await updateBus(busId, { status: next });
+            setBusData(updated);
+            setStatus(updated.status);
+          } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to update status');
+          }
+        },
+      },
     ]);
   };
 
-  const sm = STATUS_META[status];
+  if (loading || !busData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header title="Bus" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const sm = STATUS_META[status] ?? STATUS_META.inactive;
 
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title={bus.plate}
+        title={busData.plate}
         showBack
         onBack={() => navigation.goBack()}
         rightIcon={editing ? 'check' : 'edit'}
-        onRightPress={() => editing ? handleSave() : setEditing(true)}
+        onRightPress={() => (editing ? handleSave() : setEditing(true))}
       />
       <ScrollView contentContainerStyle={styles.content}>
 
-        {/* Hero */}
         <View style={styles.hero}>
-          <Typography style={{ fontSize: 48 }}>{TYPE_ICON[bus.type] || '🚌'}</Typography>
+          <Typography style={{ fontSize: 48 }}>{TYPE_ICON[busData.type] || '🚌'}</Typography>
           <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
             <View style={[styles.dot, { backgroundColor: sm.text }]} />
             <Typography variant="caption" style={{ color: sm.text, fontWeight: '700' }}>{sm.label}</Typography>
           </View>
         </View>
 
-        {/* Status actions */}
         <View style={styles.statusActions}>
-          {(['active', 'maintenance', 'inactive'] as const).filter(s => s !== status).map(s => (
+          {(['active', 'inactive'] as const).filter(s => s !== status).map(s => (
             <TouchableOpacity key={s} style={[styles.statusBtn, { backgroundColor: STATUS_META[s].bg }]} onPress={() => handleStatusChange(s)}>
               <Typography variant="caption" style={{ color: STATUS_META[s].text, fontWeight: '600' }}>
                 Set {STATUS_META[s].label}
@@ -75,29 +151,41 @@ export const BusDetailScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* Details card */}
         <View style={styles.card}>
           <Typography variant="body" style={styles.sectionTitle}>Bus Details</Typography>
 
           <FieldRow label="Plate" editing={editing} value={plate} onChangeText={setPlate} />
-          <FieldRow label="Type" value={bus.type} />
+          <FieldRow label="Type" value={busData.type} />
           <FieldRow label="Capacity" editing={editing} value={capacity} onChangeText={setCapacity} keyboardType="numeric" />
-          <FieldRow label="Organisation" value={bus.org.name} />
-          <FieldRow label="Created" value={new Date(bus.created_at).toLocaleDateString()} />
+          {busData.device_id ? <FieldRow label="Device ID" value={busData.device_id} /> : null}
+          <FieldRow label="Organisation" value={busData.org?.name ?? 'N/A'} />
+          <FieldRow label="Created" value={new Date(busData.created_at).toLocaleDateString()} />
         </View>
 
-        {/* Driver card */}
+        {busData.routes && busData.routes.length > 0 && (
+          <View style={styles.card}>
+            <Typography variant="body" style={styles.sectionTitle}>Assigned Routes</Typography>
+            {busData.routes.map(route => (
+              <Typography key={route.id} variant="body" style={{ paddingVertical: 6 }}>
+                {route.name}
+              </Typography>
+            ))}
+          </View>
+        )}
+
         <View style={styles.card}>
           <Typography variant="body" style={styles.sectionTitle}>Assigned Driver</Typography>
-          {bus.driver ? (
+          {busData.driver ? (
             <View style={styles.driverRow}>
               <View style={styles.driverAvatar}>
                 <Typography style={{ color: COLORS.white, fontWeight: '700', fontSize: 16 }}>
-                  {bus.driver.first_name[0]}{bus.driver.last_name[0]}
+                  {busData.driver.first_name[0]}{busData.driver.last_name[0]}
                 </Typography>
               </View>
               <View style={{ marginLeft: 14 }}>
-                <Typography variant="body" style={{ fontWeight: '700' }}>{bus.driver.first_name} {bus.driver.last_name}</Typography>
+                <Typography variant="body" style={{ fontWeight: '700' }}>
+                  {busData.driver.first_name} {busData.driver.last_name}
+                </Typography>
                 <Typography variant="caption" color={COLORS.textSecondary}>Driver</Typography>
               </View>
             </View>
@@ -109,15 +197,14 @@ export const BusDetailScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Recent trips */}
         <View style={styles.card}>
-          <Typography variant="body" style={styles.sectionTitle}>Recent Trips ({assignedTrips.length})</Typography>
+          <Typography variant="body" style={styles.sectionTitle}>Upcoming Trips ({assignedTrips.length})</Typography>
           {assignedTrips.length === 0 ? (
-            <Typography variant="caption" color={COLORS.textMuted}>No trips assigned yet.</Typography>
+            <Typography variant="caption" color={COLORS.textMuted}>No upcoming trips assigned.</Typography>
           ) : (
             assignedTrips.map(t => {
               const dep = new Date(t.departure_at);
-              const tripSm = { scheduled: '#3B82F6', in_progress: '#F59E0B', completed: '#10B981', cancelled: '#EF4444' }[t.status];
+              const tripSm = { scheduled: '#3B82F6', in_progress: '#F59E0B', completed: '#10B981', cancelled: '#EF4444' }[t.status] ?? COLORS.textSecondary;
               return (
                 <TouchableOpacity key={t.id} style={styles.tripRow} onPress={() => navigation.navigate('TripDetail', { trip: t })}>
                   <View style={[styles.tripDot, { backgroundColor: tripSm }]} />
@@ -125,9 +212,12 @@ export const BusDetailScreen: React.FC = () => {
                     <Typography variant="body" style={{ fontWeight: '600', fontSize: 13 }}>{t.route.name}</Typography>
                     <Typography variant="caption" color={COLORS.textSecondary}>
                       {dep.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {dep.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      {' · '}{t.booked_seats}/{t.total_seats} seats
                     </Typography>
                   </View>
-                  <Typography variant="caption" style={{ color: tripSm, fontWeight: '600' }}>{t.status.replace('_', ' ').toUpperCase()}</Typography>
+                  <Typography variant="caption" style={{ color: tripSm, fontWeight: '600' }}>
+                    {t.status.replace('_', ' ').toUpperCase()}
+                  </Typography>
                   <Icon name="chevron-right" size={16} color={COLORS.textMuted} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               );
@@ -165,6 +255,7 @@ const FieldRow = ({ label, value, editing, onChangeText, keyboardType }: any) =>
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 40 },
   hero: { alignItems: 'center', paddingVertical: 24, backgroundColor: COLORS.white, borderRadius: 20, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, marginTop: 10 },

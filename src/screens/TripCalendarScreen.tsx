@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
-  Modal, TextInput, Alert, FlatList,
+  Modal, TextInput, Alert, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { MOCK_TRIPS, MOCK_ROUTES, Trip, Route } from '../mock/transportData';
+import { Trip, Route, Bus } from '../mock/transportData';
+import { getTrips, createTripSeries, getRoutes, getBuses } from '../api';
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 5); // 05:00 – 22:00
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -29,10 +31,18 @@ function sameDay(a: Date, b: Date) {
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: '#3B82F6',
+  active: '#F59E0B',
   in_progress: '#F59E0B',
   completed: '#10B981',
   cancelled: '#EF4444',
 };
+
+function formatDateParam(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export const TripCalendarScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -41,16 +51,68 @@ export const TripCalendarScreen: React.FC = () => {
   const [showRoutePicker, setShowRoutePicker] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createSlot, setCreateSlot] = useState<{ date: Date; hour: number } | null>(null);
-  const [trips, setTrips] = useState<Trip[]>(MOCK_TRIPS);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   // Create form state
   const [newHour, setNewHour] = useState('06');
   const [newMin, setNewMin] = useState('00');
-  const [newBus, setNewBus] = useState('RAA 001 A');
+  const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
+  const [showBusPicker, setShowBusPicker] = useState(false);
   const [newSeats, setNewSeats] = useState('30');
   const [newExpress, setNewExpress] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(weekBase), [weekBase]);
+
+  const fetchRoutesAndBuses = useCallback(async () => {
+    try {
+      const [routesData, busesData] = await Promise.all([getRoutes(), getBuses()]);
+      setRoutes(routesData);
+      setBuses(busesData);
+    } catch (error) {
+      console.error('Failed to fetch routes/buses:', error);
+    }
+  }, []);
+
+  const fetchTrips = useCallback(async () => {
+    try {
+      setLoading(true);
+      const fromDate = new Date(weekDates[0]);
+      fromDate.setHours(0, 0, 0, 0);
+      const toDate = new Date(weekDates[6]);
+      toDate.setHours(23, 59, 59, 999);
+
+      const data = await getTrips({
+        route_id: selectedRoute?.id,
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+      });
+      setTrips(data);
+    } catch (error: any) {
+      console.error('Failed to fetch trips:', error);
+      Alert.alert('Error', error.message || 'Failed to load trips');
+      setTrips([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [weekDates, selectedRoute?.id]);
+
+  useEffect(() => {
+    fetchRoutesAndBuses();
+  }, [fetchRoutesAndBuses]);
+
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTrips();
+    }, [fetchTrips])
+  );
 
   const visibleTrips = useMemo(() => {
     return trips.filter(t => {
@@ -78,27 +140,39 @@ export const TripCalendarScreen: React.FC = () => {
     setShowCreateModal(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!createSlot || !selectedRoute) return;
-    const dep = new Date(createSlot.date);
-    dep.setHours(parseInt(newHour, 10), parseInt(newMin, 10), 0, 0);
-    const newTrip: Trip = {
-      id: `trip-${Date.now()}`,
-      departure_at: dep.toISOString(),
-      status: 'scheduled',
-      is_express: newExpress,
-      total_seats: parseInt(newSeats, 10) || 30,
-      booked_seats: 0,
-      remaining_seats: parseInt(newSeats, 10) || 30,
-      route: { id: selectedRoute.id, name: selectedRoute.name },
-      bus: { id: 'bus-new', plate: newBus, type: 'Coach' },
-      series: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setTrips(prev => [...prev, newTrip]);
-    setShowCreateModal(false);
-    Alert.alert('Created', `Trip on ${dep.toLocaleString()} created.`);
+
+    setCreating(true);
+    try {
+      const result = await createTripSeries({
+        route_id: selectedRoute.id,
+        bus_id: selectedBus?.id,
+        total_seats: selectedBus ? undefined : parseInt(newSeats, 10) || undefined,
+        is_express: newExpress,
+        departure_time: `${newHour.padStart(2, '0')}:${newMin.padStart(2, '0')}`,
+        starts_on: formatDateParam(createSlot.date),
+        repeat_daily: false,
+      });
+
+      if (result.trips.length > 0) {
+        setTrips(prev => [...prev, ...result.trips]);
+      } else {
+        await fetchTrips();
+      }
+
+      setShowCreateModal(false);
+      Alert.alert('Created', `${result.trips_created} trip(s) created.`);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to create trip';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -122,12 +196,17 @@ export const TripCalendarScreen: React.FC = () => {
           <TouchableOpacity style={styles.routeOption} onPress={() => { setSelectedRoute(null); setShowRoutePicker(false); }}>
             <Typography variant="body" color={COLORS.textSecondary}>All routes</Typography>
           </TouchableOpacity>
-          {MOCK_ROUTES.map(r => (
+          {routes.map(r => (
             <TouchableOpacity key={r.id} style={styles.routeOption} onPress={() => { setSelectedRoute(r); setShowRoutePicker(false); }}>
               <View style={[styles.routeDot, { backgroundColor: STATUS_COLORS.scheduled }]} />
               <Typography variant="body">{r.name}</Typography>
             </TouchableOpacity>
           ))}
+          {routes.length === 0 && (
+            <View style={styles.routeOption}>
+              <Typography variant="caption" color={COLORS.textMuted}>No routes available</Typography>
+            </View>
+          )}
         </View>
       )}
 
@@ -141,6 +220,12 @@ export const TripCalendarScreen: React.FC = () => {
       </View>
 
       {/* Calendar grid */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading trips...</Typography>
+        </View>
+      ) : (
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View>
           {/* Day headers */}
@@ -190,6 +275,7 @@ export const TripCalendarScreen: React.FC = () => {
           </ScrollView>
         </View>
       </ScrollView>
+      )}
 
       {/* Create Trip Modal */}
       <Modal visible={showCreateModal} transparent animationType="slide">
@@ -217,11 +303,40 @@ export const TripCalendarScreen: React.FC = () => {
               </View>
             </View>
 
-            <Typography variant="caption" style={styles.mLabel}>Bus Plate</Typography>
-            <TextInput style={styles.mInput} value={newBus} onChangeText={setNewBus} />
+            <Typography variant="caption" style={styles.mLabel}>Bus</Typography>
+            <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowBusPicker(!showBusPicker)}>
+              <Icon name="bus" size={18} color={selectedBus ? COLORS.brand : COLORS.textMuted} />
+              <Typography variant="body" color={selectedBus ? COLORS.text : COLORS.textMuted} style={{ marginLeft: 10, flex: 1 }}>
+                {selectedBus ? `${selectedBus.plate} (${selectedBus.type})` : 'Select a bus (optional)'}
+              </Typography>
+              {selectedBus && (
+                <TouchableOpacity onPress={() => setSelectedBus(null)}>
+                  <Icon name="close" size={16} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+            {showBusPicker && (
+              <View style={styles.busDropdown}>
+                {buses.map(b => (
+                  <TouchableOpacity key={b.id} style={styles.busOption} onPress={() => { setSelectedBus(b); setShowBusPicker(false); setNewSeats(String(b.capacity)); }}>
+                    <Typography variant="body">{b.plate}</Typography>
+                    <Typography variant="caption" color={COLORS.textSecondary}>{b.type} · {b.capacity} seats</Typography>
+                  </TouchableOpacity>
+                ))}
+                {buses.length === 0 && (
+                  <View style={styles.busOption}>
+                    <Typography variant="caption" color={COLORS.textMuted}>No buses available</Typography>
+                  </View>
+                )}
+              </View>
+            )}
 
-            <Typography variant="caption" style={styles.mLabel}>Total Seats</Typography>
-            <TextInput style={styles.mInput} value={newSeats} onChangeText={setNewSeats} keyboardType="numeric" />
+            {!selectedBus && (
+              <>
+                <Typography variant="caption" style={styles.mLabel}>Total Seats</Typography>
+                <TextInput style={styles.mInput} value={newSeats} onChangeText={setNewSeats} keyboardType="numeric" />
+              </>
+            )}
 
             <TouchableOpacity style={styles.expressToggle} onPress={() => setNewExpress(!newExpress)}>
               <View style={[styles.checkbox, newExpress && { backgroundColor: COLORS.brand, borderColor: COLORS.brand }]}>
@@ -230,8 +345,10 @@ export const TripCalendarScreen: React.FC = () => {
               <Typography variant="body" style={{ marginLeft: 10 }}>Express trip</Typography>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
-              <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700' }}>Create Trip</Typography>
+            <TouchableOpacity style={[styles.createBtn, creating && { opacity: 0.7 }]} onPress={handleCreate} disabled={creating}>
+              <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700' }}>
+                {creating ? 'Creating...' : 'Create Trip'}
+              </Typography>
             </TouchableOpacity>
           </View>
         </View>
@@ -242,6 +359,17 @@ export const TripCalendarScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  pickerBtn: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background,
+    borderRadius: 10, borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  busDropdown: {
+    backgroundColor: COLORS.white, borderRadius: 10, borderWidth: 1,
+    borderColor: COLORS.border, marginTop: 4, maxHeight: 160, overflow: 'hidden',
+  },
+  busOption: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   routeSelector: { flexDirection: 'row', alignItems: 'center', margin: 12, backgroundColor: COLORS.white, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border },
   routeDropdown: { marginHorizontal: 12, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', marginBottom: 4 },
   routeOption: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },

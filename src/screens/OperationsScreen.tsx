@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon, IconName } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { MOCK_LOCATIONS, MOCK_ROUTES, MOCK_BUSES, MOCK_PRICES } from '../mock/transportData';
+import { getLocations, getRoutes, getPricesCount, getBuses } from '../api';
 
 interface TileProps {
   icon: IconName;
@@ -56,10 +56,65 @@ const NavRow: React.FC<NavRowProps> = ({ icon, label, description, color, onPres
 
 export const OperationsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const [locationsCount, setLocationsCount] = useState(0);
+  const [routesCount, setRoutesCount] = useState(0);
+  const [activeRoutesCount, setActiveRoutesCount] = useState(0);
+  const [pricesCount, setPricesCount] = useState(0);
+  const [busesCount, setBusesCount] = useState(0);
+  const [activeBusesCount, setActiveBusesCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const activeRoutes = MOCK_ROUTES.filter(r => r.status === 'active').length;
-  const activeBuses = MOCK_BUSES.filter(b => b.status === 'active').length;
-  const incompletePrices = MOCK_ROUTES.filter(r => !r.prices_complete).length;
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      const [locations, routes, pricesTotal, buses] = await Promise.all([
+        getLocations(),
+        getRoutes(),
+        getPricesCount(),
+        getBuses(),
+      ]);
+
+      setLocationsCount(locations.length);
+      setRoutesCount(routes.length);
+      setActiveRoutesCount(routes.filter(r => r.status === 'active').length);
+      setPricesCount(pricesTotal);
+      setBusesCount(buses.length);
+      setActiveBusesCount(buses.filter(b => b.status === 'active').length);
+    } catch (error: any) {
+      console.error('Failed to fetch data:', error);
+      setLocationsCount(0);
+      setRoutesCount(0);
+      setActiveRoutesCount(0);
+      setPricesCount(0);
+      setBusesCount(0);
+      setActiveBusesCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const activeBuses = activeBusesCount;
+  const incompletePrices = 0; // TODO: Calculate from routes when prices_complete field is available
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header 
+          title="Operations" 
+          rightElement={<View />}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading...</Typography>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,7 +130,7 @@ export const OperationsScreen: React.FC = () => {
           <Tile
             icon="map"
             label="Locations"
-            count={MOCK_LOCATIONS.length}
+            count={locationsCount}
             subtitle="Stop points"
             color="#8B5CF6"
             onPress={() => navigation.navigate('LocationsList')}
@@ -83,8 +138,8 @@ export const OperationsScreen: React.FC = () => {
           <Tile
             icon="arrow-right"
             label="Routes"
-            count={activeRoutes}
-            subtitle={`${MOCK_ROUTES.length} total`}
+            count={activeRoutesCount}
+            subtitle={`${routesCount} total`}
             color={COLORS.brand}
             onPress={() => navigation.navigate('RoutesList')}
           />
@@ -94,14 +149,14 @@ export const OperationsScreen: React.FC = () => {
             icon="bus"
             label="Buses"
             count={activeBuses}
-            subtitle={`${MOCK_BUSES.length} total`}
+            subtitle={`${busesCount} total`}
             color="#10B981"
             onPress={() => navigation.navigate('Main', { screen: 'Fleets' })}
           />
           <Tile
             icon="dollar-sign"
             label="Prices"
-            count={MOCK_PRICES.length}
+            count={pricesCount}
             subtitle={incompletePrices > 0 ? `${incompletePrices} routes incomplete` : 'All complete'}
             color={incompletePrices > 0 ? '#F59E0B' : '#10B981'}
             onPress={() => navigation.navigate('PriceMatrix')}
@@ -153,6 +208,20 @@ export const OperationsScreen: React.FC = () => {
             color="#6366F1"
             onPress={() => navigation.navigate('PrintTicketDemo')}
           />
+          <NavRow
+            icon="card"
+            label="Wallet"
+            description="Balance, payouts, and transaction history"
+            color="#0EA5E9"
+            onPress={() => navigation.navigate('Wallet')}
+          />
+          <NavRow
+            icon="business"
+            label="Bank Accounts"
+            description="Manage payout bank accounts"
+            color="#7C3AED"
+            onPress={() => navigation.navigate('BankAccounts')}
+          />
         </View>
 
         {/* Warnings */}
@@ -177,6 +246,7 @@ export const OperationsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, paddingBottom: 100 },
   sectionLabel: {
     fontWeight: '700', color: COLORS.textSecondary, fontSize: 11,

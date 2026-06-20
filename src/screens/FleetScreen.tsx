@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,14 +8,16 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { MOCK_BUSES, Bus } from '../mock/transportData';
+import { Bus } from '../mock/transportData';
+import { getBuses, deleteBus } from '../api';
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string }> =
   {
@@ -30,50 +32,81 @@ const TYPE_ICON: Record<string, string> = {
   Sprinter: '🚎',
 };
 
-const FILTERS = ['All', 'active', 'maintenance', 'inactive'];
+const FILTERS = ['All', 'active', 'inactive'] as const;
 
 export const FleetScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
-  const [buses, setBuses] = useState<Bus[]>(MOCK_BUSES);
+  const [buses, setBuses] = useState<Bus[]>([]);
   const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All');
+  const [loading, setLoading] = useState(true);
+  const isFirstLoad = useRef(true);
+
+  const fetchBuses = useCallback(async (showFullLoader = true) => {
+    try {
+      if (showFullLoader) setLoading(true);
+      const data = await getBuses();
+      setBuses(data);
+    } catch (error: any) {
+      console.error('Failed to fetch buses:', error);
+      const errorMessage = error.message || 'Unable to load buses';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error Loading Buses',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+      setBuses([]);
+    } finally {
+      if (showFullLoader) setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchBuses(isFirstLoad.current);
+      isFirstLoad.current = false;
+    }, [fetchBuses])
+  );
 
   const filtered = buses.filter(b => {
+    const q = search.toLowerCase();
     const matchSearch =
-      b.plate.toLowerCase().includes(search.toLowerCase()) ||
-      b.type.toLowerCase().includes(search.toLowerCase()) ||
+      b.plate.toLowerCase().includes(q) ||
+      b.type.toLowerCase().includes(q) ||
       (b.driver
-        ? `${b.driver.first_name} ${b.driver.last_name}`
-            .toLowerCase()
-            .includes(search.toLowerCase())
+        ? `${b.driver.first_name} ${b.driver.last_name}`.toLowerCase().includes(q)
         : false);
     const matchFilter = activeFilter === 'All' || b.status === activeFilter;
     return matchSearch && matchFilter;
   });
 
   const handleDelete = (bus: Bus) => {
-    // Simulate BUS_IN_USE guard
-    const inUse = ['bus-1', 'bus-2'].includes(bus.id);
-    if (inUse) {
-      Alert.alert(
-        'Cannot Delete',
-        'This bus is currently assigned to active trips.',
-      );
-      return;
-    }
     Alert.alert('Delete Bus', `Delete "${bus.plate}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => setBuses(prev => prev.filter(b => b.id !== bus.id)),
+        onPress: async () => {
+          try {
+            await deleteBus(bus.id);
+            setBuses(prev => prev.filter(b => b.id !== bus.id));
+            Alert.alert('Success', 'Bus deleted successfully');
+          } catch (error: any) {
+            const errorMessage = error.message || 'Failed to delete bus';
+            const errorDetails = error.data?.error?.code || '';
+            Alert.alert(
+              'Error',
+              errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+            );
+          }
+        },
       },
     ]);
   };
 
   const renderItem = ({ item }: { item: Bus }) => {
-    const sm = STATUS_META[item.status];
+    const sm = STATUS_META[item.status] ?? STATUS_META.inactive;
     return (
       <TouchableOpacity
         style={styles.card}
@@ -142,9 +175,28 @@ export const FleetScreen: React.FC = () => {
   };
 
   const counts = buses.reduce((acc, b) => {
-    acc[b.status] = (acc[b.status] || 0) + 1;
+    const key = b.status === 'active' ? 'active' : b.status === 'maintenance' ? 'maintenance' : 'inactive';
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header
+          title={t('fleet.title')}
+          rightIcon="add"
+          onRightPress={() => navigation.navigate('CreateBus')}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
+            Loading buses...
+          </Typography>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -207,10 +259,11 @@ export const FleetScreen: React.FC = () => {
       >
         {FILTERS.map(f => {
           const isActive = activeFilter === f;
+          const count = f === 'All' ? buses.length : counts[f] || 0;
           const buttonText =
             f === 'All'
-              ? `All (${buses.length})`
-              : `${STATUS_META[f].label} (${counts[f] || 0})`;
+              ? `All (${count})`
+              : `${(STATUS_META[f] ?? STATUS_META.inactive).label} (${count})`;
 
           return (
             <TouchableOpacity
@@ -262,6 +315,7 @@ export const FleetScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summaryRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,

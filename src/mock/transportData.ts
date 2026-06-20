@@ -3,11 +3,12 @@
 export interface Location {
   id: string;
   name: string;
-  province: string;
+  city?: string;  // API returns 'city'
+  province?: string;  // Keep for backward compatibility
   lat: number;
   lng: number;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RouteStop {
@@ -22,11 +23,11 @@ export interface Route {
   name: string;
   status: 'active' | 'inactive';
   stops_count: number;
-  origin: { id: string; name: string };
-  destination: { id: string; name: string };
-  org: { id: string; name: string };
-  prices_complete: boolean;
-  stops: RouteStop[];
+  origin?: { id: string; name: string };
+  destination?: { id: string; name: string };
+  org?: { id: string; name: string } | null;
+  prices_complete?: boolean;
+  stops?: RouteStop[];
   created_at: string;
 }
 
@@ -35,18 +36,25 @@ export interface Price {
   boarding_stop: { id: string; name: string };
   alighting_stop: { id: string; name: string };
   amount: number;
+  currency?: string;
 }
 
 export interface Trip {
   id: string;
   departure_at: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'active' | 'in_progress' | 'completed' | 'cancelled' | string;
   is_express: boolean;
   total_seats: number;
   booked_seats: number;
   remaining_seats: number;
   route: { id: string; name: string };
   bus: { id: string; plate: string; type: string };
+  driver?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    avatar_path: string | null;
+  } | null;
   series: {
     id: string;
     frequency_minutes: number;
@@ -72,72 +80,21 @@ export interface Booking {
 export interface Bus {
   id: string;
   plate: string;
-  type: 'Coach' | 'Mini' | 'Sprinter';
+  type: string;
   capacity: number;
-  status: 'active' | 'maintenance' | 'inactive';
+  status: 'active' | 'maintenance' | 'inactive' | string;
   driver: {
     id: string;
     first_name: string;
     last_name: string;
     avatar_path: string | null;
   } | null;
-  org: { id: string; name: string };
+  org?: { id: string; name: string } | null;
+  device_id?: string;
+  routes?: Array<{ id: string; name: string }>;
   created_at: string;
+  updated_at?: string;
 }
-
-// ── Locations ──────────────────────────────────────────────────────────────
-export const MOCK_LOCATIONS: Location[] = [
-  { id: 'loc-1', name: 'Kigali', province: 'Kigali City', lat: -1.9441, lng: 30.0619, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-  { id: 'loc-2', name: 'Musanze', province: 'Northern Province', lat: -1.4989, lng: 29.6340, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-  { id: 'loc-3', name: 'Gisenyi', province: 'Western Province', lat: -1.7028, lng: 29.2567, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-  { id: 'loc-4', name: 'Huye', province: 'Southern Province', lat: -2.5967, lng: 29.7394, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-  { id: 'loc-5', name: 'Rubavu', province: 'Western Province', lat: -1.6833, lng: 29.2500, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-  { id: 'loc-6', name: 'Nyagatare', province: 'Eastern Province', lat: -1.2986, lng: 30.3278, created_at: '2026-04-20T08:00:00Z', updated_at: '2026-04-20T08:00:00Z' },
-];
-
-// ── Routes ─────────────────────────────────────────────────────────────────
-export const MOCK_ROUTES: Route[] = [
-  {
-    id: 'route-1', name: 'Kigali — Gisenyi', status: 'active', stops_count: 3,
-    origin: { id: 'loc-1', name: 'Kigali' }, destination: { id: 'loc-3', name: 'Gisenyi' },
-    org: { id: 'org-1', name: 'Volcano Express' }, prices_complete: true,
-    stops: [
-      { id: 'rs-1', location_id: 'loc-1', name: 'Kigali', order: 1 },
-      { id: 'rs-2', location_id: 'loc-2', name: 'Musanze', order: 2 },
-      { id: 'rs-3', location_id: 'loc-3', name: 'Gisenyi', order: 3 },
-    ],
-    created_at: '2026-04-20T08:00:00Z',
-  },
-  {
-    id: 'route-2', name: 'Kigali — Huye', status: 'active', stops_count: 2,
-    origin: { id: 'loc-1', name: 'Kigali' }, destination: { id: 'loc-4', name: 'Huye' },
-    org: { id: 'org-1', name: 'Volcano Express' }, prices_complete: false,
-    stops: [
-      { id: 'rs-4', location_id: 'loc-1', name: 'Kigali', order: 1 },
-      { id: 'rs-5', location_id: 'loc-4', name: 'Huye', order: 2 },
-    ],
-    created_at: '2026-04-20T08:00:00Z',
-  },
-  {
-    id: 'route-3', name: 'Kigali — Nyagatare', status: 'inactive', stops_count: 2,
-    origin: { id: 'loc-1', name: 'Kigali' }, destination: { id: 'loc-6', name: 'Nyagatare' },
-    org: { id: 'org-1', name: 'Volcano Express' }, prices_complete: false,
-    stops: [
-      { id: 'rs-6', location_id: 'loc-1', name: 'Kigali', order: 1 },
-      { id: 'rs-7', location_id: 'loc-6', name: 'Nyagatare', order: 2 },
-    ],
-    created_at: '2026-04-20T08:00:00Z',
-  },
-];
-
-// ── Prices ─────────────────────────────────────────────────────────────────
-export const MOCK_PRICES: Price[] = [
-  { id: 'p-1', boarding_stop: { id: 'loc-1', name: 'Kigali' }, alighting_stop: { id: 'loc-2', name: 'Musanze' }, amount: 2500 },
-  { id: 'p-2', boarding_stop: { id: 'loc-1', name: 'Kigali' }, alighting_stop: { id: 'loc-3', name: 'Gisenyi' }, amount: 4000 },
-  { id: 'p-3', boarding_stop: { id: 'loc-2', name: 'Musanze' }, alighting_stop: { id: 'loc-3', name: 'Gisenyi' }, amount: 1500 },
-  { id: 'p-4', boarding_stop: { id: 'loc-3', name: 'Gisenyi' }, alighting_stop: { id: 'loc-1', name: 'Kigali' }, amount: 4000 },
-  { id: 'p-5', boarding_stop: { id: 'loc-1', name: 'Kigali' }, alighting_stop: { id: 'loc-4', name: 'Huye' }, amount: 3000 },
-];
 
 // ── Trips ──────────────────────────────────────────────────────────────────
 const today = new Date();

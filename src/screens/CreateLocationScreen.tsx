@@ -6,6 +6,7 @@ import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { MapLocationPicker } from '../components/MapLocationPicker';
 import { COLORS } from '../theme/colors';
+import { createLocation } from '../api';
 
 const PROVINCES = ['Kigali City', 'Northern Province', 'Southern Province', 'Eastern Province', 'Western Province'];
 
@@ -20,7 +21,7 @@ export const CreateLocationScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim() || !province || !lat || !lng) {
       Alert.alert('Validation', 'Please fill all fields.');
       return;
@@ -31,8 +32,7 @@ export const CreateLocationScreen: React.FC = () => {
       Alert.alert('Validation', 'Latitude and longitude must be valid numbers.');
       return;
     }
-    
-    // Validate coordinate ranges
+
     if (latNum < -90 || latNum > 90) {
       Alert.alert('Validation', 'Latitude must be between -90 and 90 degrees.');
       return;
@@ -41,15 +41,29 @@ export const CreateLocationScreen: React.FC = () => {
       Alert.alert('Validation', 'Longitude must be between -180 and 180 degrees.');
       return;
     }
-    
+
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert('Success', `Location "${name}" created successfully.`, [
+    try {
+      await createLocation({
+        name: name.trim(),
+        city: province,
+        lat: latNum,
+        lng: lngNum,
+      });
+
+      Alert.alert('Success', `Location "${name.trim()}" created.`, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    }, 600);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to create location';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLocationSelect = (latitude: number, longitude: number, address?: string) => {

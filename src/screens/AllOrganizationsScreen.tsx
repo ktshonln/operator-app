@@ -227,7 +227,7 @@ export const AllOrganizationsScreen: React.FC = () => {
           style={[styles.actionButton, styles.suspendButton]}
           onPress={() => handleSuspendOrg(org)}
         >
-          <Icon name="minus-circle" size={14} color={COLORS.white} />
+          <Icon name="ban" size={14} color={COLORS.white} />
           <Typography variant="caption" color={COLORS.white} style={styles.actionText}>
             Suspend
           </Typography>

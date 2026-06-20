@@ -38,6 +38,11 @@ export type RootStackParamList = {
   BusDetail: { bus: any };
   CreateBus: undefined;
   Analytics: undefined;
+  Wallet: { orgId?: string } | undefined;
+  BankAccounts: { orgId?: string } | undefined;
+  AddBankAccount: { account?: any; orgId?: string } | undefined;
+  CreateTicket: { orgId?: string; tripId?: string } | undefined;
+  TicketDetail: { ticketId: string; ticket?: any } | undefined;
 };
 
 declare global {

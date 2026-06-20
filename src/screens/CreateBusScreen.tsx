@@ -1,63 +1,233 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, SafeAreaView, ScrollView,
-  TextInput, TouchableOpacity, Alert,
+  TextInput, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
+import { createBus, getUsers, getAllOrganizations } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
+import { useOrganization } from '../hooks/useOrganization';
 
 const BUS_TYPES = ['Coach', 'Mini', 'Sprinter'] as const;
-const BUS_STATUSES = ['active', 'maintenance', 'inactive'] as const;
 
-// Mock drivers for the picker
-const MOCK_DRIVERS = [
-  { id: 'drv-1', name: 'Jean Uwimana' },
-  { id: 'drv-2', name: 'Alice Mukamana' },
-  { id: 'drv-3', name: 'Eric Habimana' },
-  { id: 'drv-4', name: 'Marie Ingabire' },
-  { id: 'drv-5', name: 'Paul Nkurunziza' },
-];
+interface DriverOption {
+  id: string;
+  name: string;
+}
+
+interface OrgOption {
+  id: string;
+  name: string;
+}
 
 export const CreateBusScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { isPlatformAdmin, getUserOrgScope, loading: permissionsLoading } = usePermissions();
+  const { organization } = useOrganization();
 
   const [plate, setPlate] = useState('');
   const [type, setType] = useState<typeof BUS_TYPES[number]>('Coach');
   const [capacity, setCapacity] = useState('');
-  const [status, setStatus] = useState<typeof BUS_STATUSES[number]>('active');
-  const [selectedDriver, setSelectedDriver] = useState<typeof MOCK_DRIVERS[0] | null>(null);
+  const [deviceId, setDeviceId] = useState('');
+  const [organizations, setOrganizations] = useState<OrgOption[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState<OrgOption | null>(null);
+  const [showOrgPicker, setShowOrgPicker] = useState(false);
+  const [loadingOrgs, setLoadingOrgs] = useState(false);
+  const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<DriverOption | null>(null);
   const [showDriverPicker, setShowDriverPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleCreate = () => {
-    if (!plate.trim()) { Alert.alert('Validation', 'Plate number is required.'); return; }
+  const effectiveOrgId = isPlatformAdmin ? selectedOrg?.id : (getUserOrgScope ?? organization?.id ?? null);
+
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      setLoadingOrgs(true);
+      const orgsData = await getAllOrganizations();
+      const list = (Array.isArray(orgsData) ? orgsData : [])
+        .filter((org: any) => org.id && org.name)
+        .map((org: any) => ({ id: org.id, name: org.name }));
+      setOrganizations(list);
+    } catch (error) {
+      console.error('Failed to fetch organizations:', error);
+      setOrganizations([]);
+    } finally {
+      setLoadingOrgs(false);
+    }
+  }, []);
+
+  const fetchDrivers = useCallback(async (orgId: string) => {
+    try {
+      setLoadingDrivers(true);
+      setSelectedDriver(null);
+      const response = await getUsers({ user_type: 'staff', org_id: orgId, limit: 100 });
+      const list = (response.data ?? [])
+        .map((user: any) => ({
+          id: user.id,
+          name: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'Staff member',
+        }))
+        .filter((d: DriverOption) => d.id);
+      setDrivers(list);
+    } catch (error) {
+      console.error('Failed to fetch drivers:', error);
+      setDrivers([]);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (permissionsLoading) return;
+
+    if (isPlatformAdmin) {
+      fetchOrganizations();
+      return;
+    }
+
+    if (organization) {
+      setSelectedOrg({ id: organization.id, name: organization.name });
+    } else if (getUserOrgScope) {
+      setSelectedOrg({ id: getUserOrgScope, name: 'Your organization' });
+    }
+  }, [permissionsLoading, isPlatformAdmin, organization, getUserOrgScope, fetchOrganizations]);
+
+  useEffect(() => {
+    if (effectiveOrgId) {
+      fetchDrivers(effectiveOrgId);
+    } else {
+      setDrivers([]);
+      setSelectedDriver(null);
+    }
+  }, [effectiveOrgId, fetchDrivers]);
+
+  const handleCreate = async () => {
+    if (isPlatformAdmin && !selectedOrg) {
+      Alert.alert('Validation', 'Please select an organization.');
+      return;
+    }
+    if (!effectiveOrgId) {
+      Alert.alert('Validation', 'Organization is required to create a bus.');
+      return;
+    }
+    if (!plate.trim()) {
+      Alert.alert('Validation', 'Plate number is required.');
+      return;
+    }
     if (!capacity || isNaN(parseInt(capacity, 10)) || parseInt(capacity, 10) <= 0) {
       Alert.alert('Validation', 'Enter a valid seat capacity.');
       return;
     }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await createBus({
+        plate: plate.trim().toUpperCase(),
+        type,
+        capacity: parseInt(capacity, 10),
+        org_id: effectiveOrgId,
+        ...(deviceId.trim() ? { device_id: deviceId.trim() } : {}),
+        ...(selectedDriver ? { driver_id: selectedDriver.id } : {}),
+      });
+
       Alert.alert('Success', `Bus "${plate.toUpperCase()}" created successfully.`, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    }, 600);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to create bus';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (permissionsLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header title="Add Bus" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header 
-        title="Add Bus" 
-        showBack 
-        onBack={() => navigation.goBack()} 
+      <Header
+        title="Add Bus"
+        showBack
+        onBack={() => navigation.goBack()}
         rightElement={<View />}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-        {/* Plate */}
+        <Label text="Organization" required={isPlatformAdmin} />
+        {isPlatformAdmin ? (
+          <>
+            <TouchableOpacity
+              style={styles.pickerBtn}
+              onPress={() => setShowOrgPicker(!showOrgPicker)}
+            >
+              <Icon name="business" size={18} color={selectedOrg ? COLORS.brand : COLORS.textMuted} />
+              <Typography
+                variant="body"
+                color={selectedOrg ? COLORS.text : COLORS.textMuted}
+                style={{ marginLeft: 10, flex: 1 }}
+              >
+                {selectedOrg ? selectedOrg.name : 'Select organization'}
+              </Typography>
+              <Icon name={showOrgPicker ? 'chevron-left' : 'chevron-right'} size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+
+            {showOrgPicker && (
+              <View style={styles.dropdown}>
+                {loadingOrgs ? (
+                  <View style={styles.dropdownEmpty}>
+                    <ActivityIndicator size="small" color={COLORS.brand} />
+                  </View>
+                ) : organizations.length === 0 ? (
+                  <View style={styles.dropdownEmpty}>
+                    <Typography variant="caption" color={COLORS.textMuted}>No organizations found</Typography>
+                  </View>
+                ) : (
+                  organizations.map(org => (
+                    <TouchableOpacity
+                      key={org.id}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedOrg(org);
+                        setShowOrgPicker(false);
+                      }}
+                    >
+                      <Icon name="business" size={16} color={COLORS.brand} />
+                      <Typography variant="body" style={{ marginLeft: 10, flex: 1 }}>{org.name}</Typography>
+                      {selectedOrg?.id === org.id && (
+                        <Icon name="check" size={16} color={COLORS.brand} />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.orgReadOnly}>
+            <Icon name="business" size={18} color={COLORS.brand} />
+            <Typography variant="body" style={{ marginLeft: 10, fontWeight: '600', flex: 1 }}>
+              {selectedOrg?.name ?? organization?.name ?? 'Your organization'}
+            </Typography>
+          </View>
+        )}
+
         <Label text="Plate Number" required />
         <TextInput
           style={styles.input}
@@ -68,7 +238,6 @@ export const CreateBusScreen: React.FC = () => {
           autoCapitalize="characters"
         />
 
-        {/* Type */}
         <Label text="Bus Type" required />
         <View style={styles.chipRow}>
           {BUS_TYPES.map(t => (
@@ -87,7 +256,6 @@ export const CreateBusScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* Capacity */}
         <Label text="Seat Capacity" required />
         <TextInput
           style={styles.input}
@@ -98,33 +266,21 @@ export const CreateBusScreen: React.FC = () => {
           keyboardType="numeric"
         />
 
-        {/* Status */}
-        <Label text="Initial Status" required />
-        <View style={styles.chipRow}>
-          {BUS_STATUSES.map(s => {
-            const color = s === 'active' ? '#10B981' : s === 'maintenance' ? '#F59E0B' : '#9E9E9E';
-            return (
-              <TouchableOpacity
-                key={s}
-                style={[styles.chip, status === s && { backgroundColor: color, borderColor: color }]}
-                onPress={() => setStatus(s)}
-              >
-                <Typography
-                  variant="caption"
-                  style={{ fontWeight: '700', color: status === s ? COLORS.white : COLORS.textSecondary }}
-                >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </Typography>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Label text="GPS Device ID" />
+        <TextInput
+          style={styles.input}
+          placeholder="Optional tracker ID"
+          placeholderTextColor={COLORS.textMuted}
+          value={deviceId}
+          onChangeText={setDeviceId}
+          autoCapitalize="none"
+        />
 
-        {/* Driver */}
         <Label text="Assign Driver" />
         <TouchableOpacity
-          style={styles.pickerBtn}
-          onPress={() => setShowDriverPicker(!showDriverPicker)}
+          style={[styles.pickerBtn, !effectiveOrgId && styles.pickerDisabled]}
+          onPress={() => effectiveOrgId && setShowDriverPicker(!showDriverPicker)}
+          disabled={!effectiveOrgId}
         >
           <Icon name="person" size={18} color={selectedDriver ? COLORS.brand : COLORS.textMuted} />
           <Typography
@@ -132,7 +288,11 @@ export const CreateBusScreen: React.FC = () => {
             color={selectedDriver ? COLORS.text : COLORS.textMuted}
             style={{ marginLeft: 10, flex: 1 }}
           >
-            {selectedDriver ? selectedDriver.name : 'Select a driver (optional)'}
+            {!effectiveOrgId
+              ? 'Select an organization first'
+              : selectedDriver
+                ? selectedDriver.name
+                : 'Select a driver (optional)'}
           </Typography>
           {selectedDriver && (
             <TouchableOpacity onPress={() => setSelectedDriver(null)}>
@@ -142,36 +302,45 @@ export const CreateBusScreen: React.FC = () => {
           <Icon name={showDriverPicker ? 'chevron-left' : 'chevron-right'} size={18} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
 
-        {showDriverPicker && (
+        {showDriverPicker && effectiveOrgId && (
           <View style={styles.dropdown}>
-            {MOCK_DRIVERS.map(d => (
-              <TouchableOpacity
-                key={d.id}
-                style={styles.dropdownItem}
-                onPress={() => { setSelectedDriver(d); setShowDriverPicker(false); }}
-              >
-                <View style={styles.driverAvatar}>
-                  <Typography style={{ color: COLORS.white, fontWeight: '700', fontSize: 11 }}>
-                    {d.name.split(' ').map(n => n[0]).join('')}
-                  </Typography>
-                </View>
-                <Typography variant="body" style={{ marginLeft: 10 }}>{d.name}</Typography>
-                {selectedDriver?.id === d.id && (
-                  <Icon name="check" size={16} color={COLORS.brand} style={{ marginLeft: 'auto' }} />
-                )}
-              </TouchableOpacity>
-            ))}
+            {loadingDrivers ? (
+              <View style={styles.dropdownEmpty}>
+                <ActivityIndicator size="small" color={COLORS.brand} />
+              </View>
+            ) : drivers.length === 0 ? (
+              <View style={styles.dropdownEmpty}>
+                <Typography variant="caption" color={COLORS.textMuted}>No staff found for this organization</Typography>
+              </View>
+            ) : (
+              drivers.map(d => (
+                <TouchableOpacity
+                  key={d.id}
+                  style={styles.dropdownItem}
+                  onPress={() => { setSelectedDriver(d); setShowDriverPicker(false); }}
+                >
+                  <View style={styles.driverAvatar}>
+                    <Typography style={{ color: COLORS.white, fontWeight: '700', fontSize: 11 }}>
+                      {d.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </Typography>
+                  </View>
+                  <Typography variant="body" style={{ marginLeft: 10, flex: 1 }}>{d.name}</Typography>
+                  {selectedDriver?.id === d.id && (
+                    <Icon name="check" size={16} color={COLORS.brand} />
+                  )}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
 
-        {/* Summary preview */}
         {plate.trim() && capacity ? (
           <View style={styles.preview}>
             <Icon name="bus" size={20} color={COLORS.brand} />
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Typography variant="body" style={{ fontWeight: '700' }}>{plate.toUpperCase()}</Typography>
               <Typography variant="caption" color={COLORS.textSecondary}>
-                {type} · {capacity} seats · {status}
+                {selectedOrg?.name ? `${selectedOrg.name} · ` : ''}{type} · {capacity} seats
                 {selectedDriver ? ` · ${selectedDriver.name}` : ''}
               </Typography>
             </View>
@@ -204,11 +373,17 @@ const Label = ({ text, required }: { text: string; required?: boolean }) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20, paddingBottom: 40 },
   input: {
     backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1,
     borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13,
     fontSize: 15, color: COLORS.text,
+  },
+  orgReadOnly: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white,
+    borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: 14, paddingVertical: 13,
   },
   chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   chip: {
@@ -221,10 +396,12 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
     paddingHorizontal: 14, paddingVertical: 13,
   },
+  pickerDisabled: { opacity: 0.6 },
   dropdown: {
     backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1,
-    borderColor: COLORS.border, marginTop: 4, overflow: 'hidden',
+    borderColor: COLORS.border, marginTop: 4, overflow: 'hidden', maxHeight: 260,
   },
+  dropdownEmpty: { padding: 16, alignItems: 'center' },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 12,

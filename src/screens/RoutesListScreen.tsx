@@ -1,32 +1,80 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { MOCK_ROUTES, Route } from '../mock/transportData';
+import { Route } from '../mock/transportData';
+import { getRoutes, deleteRoute } from '../api';
 
 export const RoutesListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const [routes, setRoutes] = useState<Route[]>(MOCK_ROUTES);
+  const [routes, setRoutes] = useState<Route[]>([]);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const isFirstLoad = useRef(true);
 
-  const filtered = routes.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.status.toLowerCase().includes(search.toLowerCase())
+  const fetchRoutes = useCallback(async (showFullLoader = true) => {
+    try {
+      if (showFullLoader) setLoading(true);
+      const data = await getRoutes();
+      setRoutes(data);
+    } catch (error: any) {
+      console.error('Failed to fetch routes:', error);
+
+      const errorMessage = error.message || 'Unable to load routes';
+      const errorDetails = error.data?.error?.code || '';
+
+      Alert.alert(
+        'Error Loading Routes',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      setRoutes([]);
+    } finally {
+      if (showFullLoader) setLoading(false);
+    }
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchRoutes(isFirstLoad.current);
+      isFirstLoad.current = false;
+    }, [fetchRoutes])
   );
 
-  const handleDelete = (r: Route) => {
-    // Simulate ROUTE_IN_USE guard
-    const inUse = r.id === 'route-1';
-    if (inUse) {
-      Alert.alert('Cannot Delete', 'This route is currently in use by active trips.');
-      return;
-    }
+  const filtered = routes.filter(r => {
+    const q = search.toLowerCase();
+    return (
+      r.name.toLowerCase().includes(q) ||
+      r.status.toLowerCase().includes(q) ||
+      (r.origin?.name?.toLowerCase().includes(q) ?? false) ||
+      (r.destination?.name?.toLowerCase().includes(q) ?? false)
+    );
+  });
+
+  const handleDelete = async (r: Route) => {
     Alert.alert('Delete Route', `Delete "${r.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setRoutes(prev => prev.filter(x => x.id !== r.id)) },
+      { 
+        text: 'Delete', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            await deleteRoute(r.id);
+            setRoutes(prev => prev.filter(x => x.id !== r.id));
+            Alert.alert('Success', 'Route deleted successfully');
+          } catch (error: any) {
+            const errorMessage = error.message || 'Failed to delete route';
+            const errorDetails = error.data?.error?.code || '';
+            Alert.alert(
+              'Error', 
+              errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage
+            );
+          }
+        }
+      },
     ]);
   };
 
@@ -36,8 +84,10 @@ export const RoutesListScreen: React.FC = () => {
         <View style={[styles.statusDot, { backgroundColor: item.status === 'active' ? COLORS.success : COLORS.textMuted }]} />
         <View style={styles.cardBody}>
           <Typography variant="body" style={styles.name}>{item.name}</Typography>
-          <Typography variant="caption" color={COLORS.textSecondary}>{item.stops_count} stops · {item.org.name}</Typography>
-          {!item.prices_complete && (
+          <Typography variant="caption" color={COLORS.textSecondary}>
+            {item.stops_count} stops · {item.origin?.name ?? '?'} → {item.destination?.name ?? '?'}
+          </Typography>
+          {item.prices_complete === false && (
             <View style={styles.warningBadge}>
               <Icon name="alert" size={12} color="#F57C00" />
               <Typography variant="caption" style={{ color: '#F57C00', marginLeft: 4, fontSize: 11 }}>Prices incomplete</Typography>
@@ -57,6 +107,18 @@ export const RoutesListScreen: React.FC = () => {
       </View>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header title="Routes" showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateRoute')} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.brand} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading routes...</Typography>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,6 +146,7 @@ export const RoutesListScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: COLORS.white, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: COLORS.text },
   list: { paddingHorizontal: 16, paddingBottom: 24 },

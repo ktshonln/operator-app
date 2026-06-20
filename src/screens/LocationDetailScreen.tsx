@@ -16,6 +16,7 @@ import { Icon } from '../components/Icon';
 import { MapLocationPicker } from '../components/MapLocationPicker';
 import { COLORS } from '../theme/colors';
 import { Location } from '../mock/transportData';
+import { updateLocation } from '../api';
 
 export const LocationDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -23,7 +24,7 @@ export const LocationDetailScreen: React.FC = () => {
   const loc: Location = route.params?.location;
 
   const [name, setName] = useState(loc.name);
-  const [province, setProvince] = useState(loc.province);
+  const [province, setProvince] = useState(loc.city || loc.province || '');
   const [lat, setLat] = useState(String(loc.lat));
   const [lng, setLng] = useState(String(loc.lng));
   const [editing, setEditing] = useState(false);
@@ -75,7 +76,7 @@ export const LocationDetailScreen: React.FC = () => {
     </html>
   `;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Validation', 'Name is required.');
       return;
@@ -91,7 +92,6 @@ export const LocationDetailScreen: React.FC = () => {
       return;
     }
 
-    // Validate coordinate ranges
     if (latNum < -90 || latNum > 90) {
       Alert.alert('Validation', 'Latitude must be between -90 and 90 degrees.');
       return;
@@ -105,11 +105,32 @@ export const LocationDetailScreen: React.FC = () => {
     }
 
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const response = await updateLocation(loc.id, {
+        name: name.trim(),
+        city: province.trim(),
+        lat: latNum,
+        lng: lngNum,
+      });
+
+      const updated = response?.data ?? response;
+      if (updated?.name) setName(updated.name);
+      if (updated?.city) setProvince(updated.city);
+      if (updated?.lat != null) setLat(String(updated.lat));
+      if (updated?.lng != null) setLng(String(updated.lng));
+
       setEditing(false);
       Alert.alert('Saved', 'Location updated successfully.');
-    }, 600);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to update location';
+      const errorDetails = error.data?.error?.code || '';
+      Alert.alert(
+        'Error',
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLocationSelect = (latitude: number, longitude: number) => {

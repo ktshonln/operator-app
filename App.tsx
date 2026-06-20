@@ -42,6 +42,11 @@ import { TripDetailScreen } from './src/screens/TripDetailScreen';
 import { BusDetailScreen } from './src/screens/BusDetailScreen';
 import { CreateBusScreen } from './src/screens/CreateBusScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
+import { WalletScreen } from './src/screens/WalletScreen';
+import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
+import { AddBankAccountScreen } from './src/screens/AddBankAccountScreen';
+import { CreateTicketScreen } from './src/screens/CreateTicketScreen';
+import { TicketDetailScreen } from './src/screens/TicketDetailScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -104,6 +109,11 @@ function AppStack() {
       <Stack.Screen name="BusDetail" component={BusDetailScreen} />
       <Stack.Screen name="CreateBus" component={CreateBusScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />
+      <Stack.Screen name="AddBankAccount" component={AddBankAccountScreen} />
+      <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
+      <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
     </Stack.Navigator>
   );
 }
