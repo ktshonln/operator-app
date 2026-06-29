@@ -7,7 +7,7 @@ export interface User {
   phone_verified_at?: string | null;
   email_verified_at?: string | null;
   avatar_path?: string;
-  user_type: string; // 'staff', 'admin', 'driver', etc.
+  user_type: string; // 'passenger' | 'staff'
   status: string; // 'active', 'inactive', 'suspended'
   org_id: string | null; // null for platform admins
   roles: string[];
@@ -51,7 +51,6 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   first_name?: string;
   last_name?: string;
-  email?: string;
   phone_number?: string;
-  role_id?: string;
+  driver_license_number?: string;
 }

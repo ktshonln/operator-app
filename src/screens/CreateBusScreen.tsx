@@ -3,21 +3,17 @@ import {
   View, StyleSheet, SafeAreaView, ScrollView,
   TextInput, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { createBus, getUsers, getAllOrganizations } from '../api';
+import { createBus, getDrivers, getPendingDrivers, getAllOrganizations } from '../api';
+import type { DriverOption } from '../api/client';
 import { usePermissions } from '../hooks/usePermissions';
 import { useOrganization } from '../hooks/useOrganization';
 
 const BUS_TYPES = ['Coach', 'Mini', 'Sprinter'] as const;
-
-interface DriverOption {
-  id: string;
-  name: string;
-}
 
 interface OrgOption {
   id: string;
@@ -26,7 +22,7 @@ interface OrgOption {
 
 export const CreateBusScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { isPlatformAdmin, getUserOrgScope, loading: permissionsLoading } = usePermissions();
+  const { isPlatformAdmin, isOrgAdmin, getUserOrgScope, loading: permissionsLoading } = usePermissions();
   const { organization } = useOrganization();
 
   const [plate, setPlate] = useState('');
@@ -38,6 +34,7 @@ export const CreateBusScreen: React.FC = () => {
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [pendingDrivers, setPendingDrivers] = useState<DriverOption[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<DriverOption | null>(null);
   const [showDriverPicker, setShowDriverPicker] = useState(false);
@@ -65,17 +62,16 @@ export const CreateBusScreen: React.FC = () => {
     try {
       setLoadingDrivers(true);
       setSelectedDriver(null);
-      const response = await getUsers({ user_type: 'staff', org_id: orgId, limit: 100 });
-      const list = (response.data ?? [])
-        .map((user: any) => ({
-          id: user.id,
-          name: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'Staff member',
-        }))
-        .filter((d: DriverOption) => d.id);
+      const [list, pending] = await Promise.all([
+        getDrivers(orgId),
+        getPendingDrivers(orgId),
+      ]);
       setDrivers(list);
+      setPendingDrivers(pending);
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
       setDrivers([]);
+      setPendingDrivers([]);
     } finally {
       setLoadingDrivers(false);
     }
@@ -101,11 +97,18 @@ export const CreateBusScreen: React.FC = () => {
       fetchDrivers(effectiveOrgId);
     } else {
       setDrivers([]);
+      setPendingDrivers([]);
       setSelectedDriver(null);
     }
   }, [effectiveOrgId, fetchDrivers]);
 
-  const handleCreate = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      if (effectiveOrgId) fetchDrivers(effectiveOrgId);
+    }, [effectiveOrgId, fetchDrivers]),
+  );
+
+  const submitBus = async (includeDriver: boolean) => {
     if (isPlatformAdmin && !selectedOrg) {
       Alert.alert('Validation', 'Please select an organization.');
       return;
@@ -125,28 +128,86 @@ export const CreateBusScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      await createBus({
-        plate: plate.trim().toUpperCase(),
-        type,
-        capacity: parseInt(capacity, 10),
-        org_id: effectiveOrgId,
-        ...(deviceId.trim() ? { device_id: deviceId.trim() } : {}),
-        ...(selectedDriver ? { driver_id: selectedDriver.id } : {}),
-      });
+      await createBus(
+        {
+          plate: plate.trim().toUpperCase(),
+          type,
+          capacity: parseInt(capacity, 10),
+          ...(deviceId.trim() ? { device_id: deviceId.trim() } : {}),
+          ...(includeDriver && selectedDriver ? { driver_id: selectedDriver.id } : {}),
+        },
+        {
+          orgId: effectiveOrgId ?? undefined,
+          includeOrgIdInBody: isPlatformAdmin,
+        },
+      );
 
       Alert.alert('Success', `Bus "${plate.toUpperCase()}" created successfully.`, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
+      const errorCode = error.data?.error?.code ?? '';
+      if (errorCode === 'DRIVER_NOT_FOUND' && includeDriver) {
+        Alert.alert(
+          'Driver not accepted',
+          'The server rejected this driver (DRIVER_NOT_FOUND). The user should be staff with role slug driver. If they already are, create the bus without a driver and contact Katisha support.',
+          [
+            {
+              text: 'Create without driver',
+              onPress: () => {
+                setSelectedDriver(null);
+                void submitBus(false);
+              },
+            },
+            { text: 'Invite driver', onPress: () => navigation.navigate('UserForm', { roleSlug: 'driver' }) },
+            { text: 'OK', style: 'cancel' },
+          ],
+        );
+        return;
+      }
+
+      if (errorCode === 'PLATE_ALREADY_EXISTS') {
+        Alert.alert('Plate already exists', 'This plate number is already registered. Use a different plate.');
+        return;
+      }
+      if (errorCode === 'DEVICE_ALREADY_EXISTS') {
+        Alert.alert('Device already in use', 'This tracker/device id is already assigned to another bus.');
+        return;
+      }
+      if (errorCode === 'INTERNAL_SERVER_ERROR') {
+        Alert.alert(
+          'Server error',
+          isOrgAdmin
+            ? 'Katisha returned a server error (500). As org admin you already have full org access — this is a backend issue, not missing permissions. Try plate format like RAA 001 A without a driver, or contact Katisha support with the createBus payload from logs.'
+            : 'Katisha returned a server error (500). Required: plate, type (Coach/Mini/Sprinter), capacity. Try plate format like RAA 001 A, or contact Katisha support.',
+        );
+        return;
+      }
+      if (errorCode === 'FORBIDDEN' || error.status === 403) {
+        Alert.alert(
+          'Permission denied',
+          isOrgAdmin
+            ? 'Unexpected — org admins have *:*:org (full org access including bus:create). Contact Katisha support if this persists.'
+            : 'Your role needs bus:create:org permission. Ask an org admin to add Bus Create in Role Management.',
+        );
+        return;
+      }
+
       const errorMessage = error.message || 'Failed to create bus';
-      const errorDetails = error.data?.error?.code || '';
       Alert.alert(
         'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        errorCode ? `${errorMessage}\n\nError: ${errorCode}` : errorMessage,
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreate = () => submitBus(!!selectedDriver);
+
+  const handleCreateWithoutDriver = () => {
+    setSelectedDriver(null);
+    void submitBus(false);
   };
 
   if (permissionsLoading) {
@@ -225,10 +286,20 @@ export const CreateBusScreen: React.FC = () => {
             <Typography variant="body" style={{ marginLeft: 10, fontWeight: '600', flex: 1 }}>
               {selectedOrg?.name ?? organization?.name ?? 'Your organization'}
             </Typography>
+            {isOrgAdmin && (
+              <View style={styles.orgAdminBadge}>
+                <Typography variant="caption" style={{ color: COLORS.brand, fontWeight: '700', fontSize: 10 }}>
+                  ORG ADMIN
+                </Typography>
+              </View>
+            )}
           </View>
         )}
 
         <Label text="Plate Number" required />
+        <Typography variant="caption" color={COLORS.textMuted} style={{ marginBottom: 6 }}>
+          Required. Example: RAA 001 A
+        </Typography>
         <TextInput
           style={styles.input}
           placeholder="e.g. RAA 001 A"
@@ -277,6 +348,9 @@ export const CreateBusScreen: React.FC = () => {
         />
 
         <Label text="Assign Driver" />
+        <Typography variant="caption" color={COLORS.textMuted} style={{ marginBottom: 8 }}>
+          Staff users with role slug driver appear here. user_type is only passenger or staff — drivers are staff, not a separate user_type.
+        </Typography>
         <TouchableOpacity
           style={[styles.pickerBtn, !effectiveOrgId && styles.pickerDisabled]}
           onPress={() => effectiveOrgId && setShowDriverPicker(!showDriverPicker)}
@@ -308,12 +382,23 @@ export const CreateBusScreen: React.FC = () => {
               <View style={styles.dropdownEmpty}>
                 <ActivityIndicator size="small" color={COLORS.brand} />
               </View>
-            ) : drivers.length === 0 ? (
+            ) : drivers.length === 0 && pendingDrivers.length === 0 ? (
               <View style={styles.dropdownEmpty}>
-                <Typography variant="caption" color={COLORS.textMuted}>No staff found for this organization</Typography>
+                <Typography variant="caption" color={COLORS.textMuted} style={{ textAlign: 'center' }}>
+                  No bus-assignable drivers in this organization yet.
+                </Typography>
+                <TouchableOpacity
+                  style={styles.inviteLink}
+                  onPress={() => navigation.navigate('UserForm', { roleSlug: 'driver' })}
+                >
+                  <Typography variant="caption" style={{ color: COLORS.brand, fontWeight: '700' }}>
+                    Invite with role slug: driver
+                  </Typography>
+                </TouchableOpacity>
               </View>
             ) : (
-              drivers.map(d => (
+              <>
+              {drivers.map(d => (
                 <TouchableOpacity
                   key={d.id}
                   style={styles.dropdownItem}
@@ -324,12 +409,41 @@ export const CreateBusScreen: React.FC = () => {
                       {d.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </Typography>
                   </View>
-                  <Typography variant="body" style={{ marginLeft: 10, flex: 1 }}>{d.name}</Typography>
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <Typography variant="body">{d.name}</Typography>
+                    <Typography variant="caption" color={COLORS.success}>staff · role: driver</Typography>
+                  </View>
+                  {d.licenseNumber ? (
+                    <Typography variant="caption" color={COLORS.textMuted}>{d.licenseNumber}</Typography>
+                  ) : null}
                   {selectedDriver?.id === d.id && (
                     <Icon name="check" size={16} color={COLORS.brand} />
                   )}
                 </TouchableOpacity>
-              ))
+              ))}
+              {pendingDrivers.length > 0 && (
+                <View style={styles.pendingSection}>
+                  <Typography variant="caption" color={COLORS.textMuted} style={{ padding: 8 }}>
+                    Has role slug driver but user_type is not staff:
+                  </Typography>
+                  {pendingDrivers.map(d => (
+                    <View key={d.id} style={[styles.dropdownItem, styles.dropdownItemDisabled]}>
+                      <View style={[styles.driverAvatar, { opacity: 0.5 }]}>
+                        <Typography style={{ color: COLORS.white, fontWeight: '700', fontSize: 11 }}>
+                          {d.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </Typography>
+                      </View>
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Typography variant="body" color={COLORS.textMuted}>{d.name}</Typography>
+                        <Typography variant="caption" color={COLORS.error}>
+                          user_type: {d.userType ?? 'unknown'} · not staff
+                        </Typography>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              </>
             )}
           </View>
         )}
@@ -354,9 +468,21 @@ export const CreateBusScreen: React.FC = () => {
         >
           <Icon name="bus" size={18} color={COLORS.white} />
           <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700', marginLeft: 10 }}>
-            {loading ? 'Creating...' : 'Create Bus'}
+            {loading ? 'Creating...' : selectedDriver ? 'Create Bus with Driver' : 'Create Bus'}
           </Typography>
         </TouchableOpacity>
+
+        {selectedDriver && (
+          <TouchableOpacity
+            style={[styles.submitBtnSecondary, loading && { opacity: 0.7 }]}
+            onPress={handleCreateWithoutDriver}
+            disabled={loading}
+          >
+            <Typography variant="body" color={COLORS.brand} style={{ fontWeight: '700' }}>
+              Create without driver
+            </Typography>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -385,6 +511,10 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
     paddingHorizontal: 14, paddingVertical: 13,
   },
+  orgAdminBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: COLORS.brandLight, marginLeft: 8,
+  },
   chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   chip: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
@@ -401,12 +531,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1,
     borderColor: COLORS.border, marginTop: 4, overflow: 'hidden', maxHeight: 260,
   },
-  dropdownEmpty: { padding: 16, alignItems: 'center' },
+  dropdownEmpty: { padding: 16, alignItems: 'center', gap: 8 },
+  inviteLink: { marginTop: 4, paddingVertical: 4 },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
+  dropdownItemDisabled: { opacity: 0.85, backgroundColor: '#FAFAFA' },
+  pendingSection: { borderTopWidth: 1, borderTopColor: COLORS.border },
   driverAvatar: {
     width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.brand,
     alignItems: 'center', justifyContent: 'center',
@@ -418,5 +551,10 @@ const styles = StyleSheet.create({
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.brand, borderRadius: 14, paddingVertical: 16, marginTop: 16,
+  },
+  submitBtnSecondary: {
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 14, paddingVertical: 14, marginTop: 10,
+    borderWidth: 1.5, borderColor: COLORS.brand, backgroundColor: COLORS.white,
   },
 });

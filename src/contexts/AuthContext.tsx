@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authStore } from '../api/authStore';
-import { apiClient } from '../api/client';
+import { apiClient, resetAuthClientState, beginLoginGrace } from '../api/client';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -97,25 +97,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setNeeds2FAVerification(true);
   };
 
+  const enrichUserProfile = async () => {
+    // Brief delay — Katisha session can reject immediate /users/me right after verify-2fa
+    await new Promise(resolve => setTimeout(resolve, 400));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const currentUser = await apiClient('/users/me', { method: 'GET' });
+        await authStore.saveUser(currentUser);
+        setUser(currentUser);
+        return;
+      } catch (error: any) {
+        if (error?.isAborted) return;
+        if (attempt === 0 && error?.isSessionRevoked) {
+          await new Promise(resolve => setTimeout(resolve, 600));
+          continue;
+        }
+        console.warn('Profile enrich failed, using login user:', error?.message ?? error);
+        return;
+      }
+    }
+  };
+
   const login = async (tokens: { access_token: string; refresh_token: string; user: any }) => {
     try {
+      resetAuthClientState();
       await authStore.saveToken(tokens.access_token);
       await authStore.saveRefreshToken(tokens.refresh_token);
-      await authStore.saveUser(tokens.user);
       await authStore.set2FAVerified(true);
-      await authStore.clearPending2FAUser(); // clear any pending 2FA state
-      
+      await authStore.clearPending2FAUser();
+      await authStore.saveUser(tokens.user);
+
+      beginLoginGrace();
       setUser(tokens.user);
       setIsAuthenticated(true);
       setNeeds2FAVerification(false);
+
+      void enrichUserProfile();
     } catch (error) {
       console.error('Error during login:', error);
+      resetAuthClientState();
+      await authStore.clearAll();
+      setUser(null);
+      setIsAuthenticated(false);
+      setNeeds2FAVerification(false);
       throw error;
     }
   };
 
   const logout = async () => {
     try {
+      resetAuthClientState();
       // Try to call logout API if we have a token
       const token = await authStore.getToken();
       if (token) {

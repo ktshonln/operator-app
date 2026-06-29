@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -8,28 +8,65 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { deleteUser, getRoleById } from '../api/client';
+import { deleteUser, getRoleById, getUserById, getRolesWithGrants } from '../api/client';
 import { User } from '../types/user';
 import { Role } from '../types/role';
+import { resolveRoleNames, isDriverRoleSlug } from '../utils/roles';
 
 export const UserDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<any>();
   const { t } = useTranslation();
-  const { user } = route.params as { user: User };
+  const { user: initialUser } = route.params as { user: User };
   
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
   const [deleting, setDeleting] = useState(false);
   const [roleDetails, setRoleDetails] = useState<Role | null>(null);
   const [loadingRole, setLoadingRole] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [orgRoles, setOrgRoles] = useState<Role[]>([]);
+
+  const refreshUser = useCallback(async () => {
+    if (!initialUser?.id) return;
+    setLoadingUser(true);
+    try {
+      const freshUser = await getUserById(initialUser.id);
+      setUser(freshUser);
+    } catch (error) {
+      console.warn('Failed to refresh user details:', error);
+    } finally {
+      setLoadingUser(false);
+    }
+  }, [initialUser?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [refreshUser]),
+  );
 
   useEffect(() => {
-    // Check if user exists and has role_id before fetching role details
+    const loadRoles = async () => {
+      if (!user?.org_id) return;
+      try {
+        const roles = await getRolesWithGrants(user.org_id);
+        if (Array.isArray(roles)) setOrgRoles(roles);
+      } catch (error) {
+        console.warn('Failed to load roles for display:', error);
+      }
+    };
+    loadRoles();
+  }, [user?.org_id]);
+
+  const roleDisplayName = resolveRoleNames(user?.roles, orgRoles);
+
+  useEffect(() => {
     if (user && user.role_id) {
       fetchRoleDetails();
     }
@@ -149,9 +186,7 @@ export const UserDetailsScreen: React.FC = () => {
             {user.first_name} {user.last_name}
           </Typography>
           <Typography variant="body" color={COLORS.brand} style={styles.userRole}>
-            {user.roles && user.roles.length > 0 
-              ? user.roles.join(', ') 
-              : user.role?.name || 'No Role Assigned'}
+            {loadingUser ? 'Refreshing...' : roleDisplayName}
           </Typography>
         </View>
 
@@ -175,10 +210,36 @@ export const UserDetailsScreen: React.FC = () => {
 
           {user.user_type && (
             <InfoRow 
-              label="User Type"
-              value={user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
+              label="User Type (server)"
+              value={user.user_type}
               icon="person"
             />
+          )}
+
+          {user.roles?.length ? (
+            <InfoRow
+              label="Role slugs"
+              value={user.roles.join(', ')}
+              icon="shield"
+            />
+          ) : null}
+
+          {user.roles?.some(isDriverRoleSlug) && user.user_type !== 'staff' && (
+            <View style={styles.warningBox}>
+              <Icon name="info" size={16} color="#F59E0B" />
+              <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8, flex: 1 }}>
+                This user has role slug driver but user_type is "{user.user_type}". Bus drivers must be user_type staff (invited via Team → Invite User, not passenger signup).
+              </Typography>
+            </View>
+          )}
+
+          {user.roles?.some(isDriverRoleSlug) && user.user_type === 'staff' && (
+            <View style={[styles.warningBox, { backgroundColor: '#ECFDF5' }]}>
+              <Icon name="check" size={16} color={COLORS.success} />
+              <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8, flex: 1 }}>
+                Driver profile: staff + role slug driver. If bus assignment still fails with DRIVER_NOT_FOUND, contact Katisha support — the trip service may need to register this user on their side.
+              </Typography>
+            </View>
           )}
 
           {user.status && (
@@ -196,9 +257,7 @@ export const UserDetailsScreen: React.FC = () => {
           
           <InfoRow 
             label="Current Role"
-            value={user.roles && user.roles.length > 0 
-              ? user.roles.join(', ') 
-              : roleDetails?.name || user.role?.name || 'No Role Assigned'}
+            value={roleDisplayName}
             icon="shield"
           />
           
@@ -440,6 +499,14 @@ const styles = StyleSheet.create({
   noPermissionsContainer: {
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
   },
   centered: {
     flex: 1,

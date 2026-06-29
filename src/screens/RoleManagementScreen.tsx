@@ -21,6 +21,7 @@ import { getRoleById, updateRole, deleteRole, createRole, addGrantToRole, remove
 import { authStore } from '../api/authStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { Role, CreateRoleRequest, UpdateRoleRequest, Grant, Permission } from '../types/role';
+import { getRoleDisplayLabel, isDriverRoleSlug, isPlatformRoleSlug } from '../utils/roles';
 
 export const RoleManagementScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -221,13 +222,11 @@ export const RoleManagementScreen: React.FC = () => {
   };
 
   const handleManageGrants = (role: Role) => {
-    // Platform admins can manage all roles, including system roles
     if (role.is_managed && !isPlatformAdmin) {
-      Alert.alert(
-        'Cannot Modify Managed Role',
-        'This is a system-managed role and cannot be modified. Only custom roles can have their grants changed.',
-        [{ text: 'OK' }]
-      );
+      const message = isDriverRoleSlug(role.slug)
+        ? 'The platform role "driver" is managed by Katisha. Bus and fleet permissions are already defined on it. Assign users via Invite User → role slug: driver. You cannot add grants to platform roles as an org admin.'
+        : 'This is a platform-managed role and cannot be modified. Only custom org roles can have their grants changed.';
+      Alert.alert('Cannot Modify Platform Role', message, [{ text: 'OK' }]);
       return;
     }
     setSelectedRole(role);
@@ -449,18 +448,29 @@ export const RoleManagementScreen: React.FC = () => {
       <View style={styles.roleHeader}>
         <View style={styles.roleInfo}>
           <View style={styles.roleNameContainer}>
-            <Typography variant="body" style={styles.roleName}>{item.name}</Typography>
+            <Typography variant="body" style={styles.roleName}>
+              {getRoleDisplayLabel(item)}
+            </Typography>
             {item.is_managed && (
               <View style={[
                 styles.managedBadge,
                 isPlatformAdmin && styles.platformAdminManagedBadge
               ]}>
                 <Typography variant="caption" color={COLORS.white} style={styles.managedBadgeText}>
-                  {isPlatformAdmin ? 'SYSTEM (EDITABLE)' : 'SYSTEM'}
+                  {isPlatformAdmin ? 'PLATFORM' : 'PLATFORM'}
                 </Typography>
               </View>
             )}
           </View>
+          <Typography variant="caption" color={COLORS.brand} style={{ fontFamily: 'monospace', marginTop: 2 }}>
+            slug: {item.slug}
+            {isDriverRoleSlug(item.slug) ? ' · invite users with this for bus drivers' : ''}
+          </Typography>
+          {item.name && item.name.toLowerCase() !== getRoleDisplayLabel(item).toLowerCase() && (
+            <Typography variant="caption" color={COLORS.textSecondary}>
+              API name: {item.name}
+            </Typography>
+          )}
           {item.description && (
             <Typography variant="caption" color={COLORS.textSecondary} style={styles.roleDescription}>
               {item.description}

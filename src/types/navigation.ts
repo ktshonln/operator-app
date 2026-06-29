@@ -12,7 +12,7 @@ export type RootStackParamList = {
   ChangePassword: undefined;
   UsersList: undefined;
   UserDetails: { user: User };
-  UserForm: { userId?: string };
+  UserForm: { userId?: string; roleSlug?: string };
   Organization: undefined;
   TwoFactor: { userId: string; identifier: string; channel: string };
   PostLogin2FA: undefined;
@@ -33,7 +33,7 @@ export type RootStackParamList = {
   RoutesList: undefined;
   CreateRoute: undefined;
   RouteDetail: { route: any };
-  PriceMatrix: undefined;
+  PriceMatrix: { routeId?: string; routeName?: string } | undefined;
   TripDetail: { trip: any };
   BusDetail: { bus: any };
   CreateBus: undefined;

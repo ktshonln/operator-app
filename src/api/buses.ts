@@ -1,10 +1,26 @@
 import { apiClient } from './client';
 import { Bus } from '../mock/transportData';
 
+const BUS_TYPE_LABELS: Record<string, string> = {
+  coach: 'Coach',
+  mini: 'Mini',
+  sprinter: 'Sprinter',
+};
+
+const formatBusTypeForApi = (type: string): string => {
+  const key = type.trim().toLowerCase();
+  return BUS_TYPE_LABELS[key] ?? type.trim();
+};
+
+const formatBusTypeForDisplay = (type: string) => {
+  const key = type.trim().toLowerCase();
+  return BUS_TYPE_LABELS[key] ?? type;
+};
+
 const normalizeBus = (raw: any): Bus => ({
   id: raw.id,
   plate: raw.plate,
-  type: raw.type,
+  type: formatBusTypeForDisplay(raw.type ?? ''),
   capacity: raw.capacity,
   status: raw.status ?? 'active',
   driver: raw.driver ?? null,
@@ -67,23 +83,39 @@ export const getBusesCount = async () => {
 
 export const getBusById = async (busId: string): Promise<Bus> => {
   const response = await apiClient(`/buses/${busId}`, { method: 'GET' });
-  return normalizeBus(response);
+  return normalizeBus(response?.data ?? response);
 };
 
-export const createBus = async (busData: {
-  plate: string;
-  type: string;
-  capacity: number;
-  device_id?: string;
-  driver_id?: string;
-  route_ids?: string[];
-  org_id?: string;
-}) => {
+export const createBus = async (
+  busData: {
+    plate: string;
+    type: string;
+    capacity: number;
+    device_id?: string;
+    driver_id?: string;
+    route_ids?: string[];
+  },
+  options?: { orgId?: string; includeOrgIdInBody?: boolean },
+) => {
+  const body: Record<string, unknown> = {
+    plate: busData.plate.trim().toUpperCase(),
+    type: formatBusTypeForApi(busData.type),
+    capacity: busData.capacity,
+  };
+
+  if (busData.device_id?.trim()) body.device_id = busData.device_id.trim();
+  if (busData.driver_id) body.driver_id = busData.driver_id;
+  if (busData.route_ids?.length) body.route_ids = busData.route_ids;
+  // Platform admins must send org_id. Org admins use JWT org context (X-Org-ID) — do not send org_id.
+  if (options?.includeOrgIdInBody && options.orgId) body.org_id = options.orgId;
+
+  console.log('createBus payload:', JSON.stringify(body));
+
   const response = await apiClient('/buses', {
     method: 'POST',
-    body: busData,
+    body,
   });
-  return normalizeBus(response);
+  return normalizeBus(response?.data ?? response);
 };
 
 export const updateBus = async (
@@ -102,7 +134,7 @@ export const updateBus = async (
     method: 'PATCH',
     body: busData,
   });
-  return normalizeBus(response);
+  return normalizeBus(response?.data ?? response);
 };
 
 export const deleteBus = async (busId: string) => {

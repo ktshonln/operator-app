@@ -66,7 +66,7 @@ export const MainTabNavigator = () => {
       <Tab.Screen
         name="Operations"
         component={OperationsScreen}
-        options={{ tabBarLabel: 'Operations' }}
+        options={{ tabBarLabel: t('operations.title') }}
       />
     </Tab.Navigator>
   );

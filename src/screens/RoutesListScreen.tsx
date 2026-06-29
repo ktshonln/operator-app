@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
@@ -9,6 +10,7 @@ import { Route } from '../mock/transportData';
 import { getRoutes, deleteRoute } from '../api';
 
 export const RoutesListScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [search, setSearch] = useState('');
@@ -23,19 +25,19 @@ export const RoutesListScreen: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to fetch routes:', error);
 
-      const errorMessage = error.message || 'Unable to load routes';
+      const errorMessage = error.message || t('routes.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
 
       Alert.alert(
-        'Error Loading Routes',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        t('routes.errorLoading'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
+        [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
       );
       setRoutes([]);
     } finally {
       if (showFullLoader) setLoading(false);
     }
-  }, [navigation]);
+  }, [navigation, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -55,22 +57,22 @@ export const RoutesListScreen: React.FC = () => {
   });
 
   const handleDelete = async (r: Route) => {
-    Alert.alert('Delete Route', `Delete "${r.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('routes.deleteTitle'), t('routes.deleteConfirm', { name: r.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       { 
-        text: 'Delete', 
+        text: t('common.delete'), 
         style: 'destructive', 
         onPress: async () => {
           try {
             await deleteRoute(r.id);
             setRoutes(prev => prev.filter(x => x.id !== r.id));
-            Alert.alert('Success', 'Route deleted successfully');
+            Alert.alert(t('common.success'), t('routes.deleted'));
           } catch (error: any) {
-            const errorMessage = error.message || 'Failed to delete route';
+            const errorMessage = error.message || t('routes.deleteFailed');
             const errorDetails = error.data?.error?.code || '';
             Alert.alert(
-              'Error', 
-              errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage
+              t('common.error'), 
+              errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage
             );
           }
         }
@@ -85,12 +87,12 @@ export const RoutesListScreen: React.FC = () => {
         <View style={styles.cardBody}>
           <Typography variant="body" style={styles.name}>{item.name}</Typography>
           <Typography variant="caption" color={COLORS.textSecondary}>
-            {item.stops_count} stops · {item.origin?.name ?? '?'} → {item.destination?.name ?? '?'}
+            {item.stops_count} {t('common.stops')} · {item.origin?.name ?? '?'} → {item.destination?.name ?? '?'}
           </Typography>
           {item.prices_complete === false && (
             <View style={styles.warningBadge}>
               <Icon name="alert" size={12} color="#F57C00" />
-              <Typography variant="caption" style={{ color: '#F57C00', marginLeft: 4, fontSize: 11 }}>Prices incomplete</Typography>
+              <Typography variant="caption" style={{ color: '#F57C00', marginLeft: 4, fontSize: 11 }}>{t('routes.pricesIncomplete')}</Typography>
             </View>
           )}
         </View>
@@ -111,10 +113,10 @@ export const RoutesListScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header title="Routes" showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateRoute')} />
+        <Header title={t('routes.title')} showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateRoute')} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.brand} />
-          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading routes...</Typography>
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>{t('routes.loading')}</Typography>
         </View>
       </SafeAreaView>
     );
@@ -122,10 +124,10 @@ export const RoutesListScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Routes" showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateRoute')} />
+      <Header title={t('routes.title')} showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateRoute')} />
       <View style={styles.searchRow}>
         <Icon name="search" size={18} color={COLORS.textSecondary} />
-        <TextInput style={styles.searchInput} placeholder="Search routes..." placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
+        <TextInput style={styles.searchInput} placeholder={t('routes.searchPlaceholder')} placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
         {search.length > 0 && <TouchableOpacity onPress={() => setSearch('')}><Icon name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
       </View>
       <FlatList
@@ -136,7 +138,7 @@ export const RoutesListScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Icon name="map" size={40} color={COLORS.textMuted} />
-            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>No routes found</Typography>
+            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>{t('routes.empty')}</Typography>
           </View>
         }
       />

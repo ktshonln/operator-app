@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -6,18 +6,19 @@ import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { getMyOrganization, getAllOrganizations, inviteUser, updateUser, getUserById, getRolesWithGrants } from '../api/client';
+import { getMyOrganization, getAllOrganizations, inviteUser, updateUser, updateUserRoles, getUserById, getRolesWithGrants } from '../api/client';
 import { authStore } from '../api/authStore';
 import { Role } from '../types/role';
 import { UpdateUserRequest } from '../types/user';
 import { usePermissions } from '../hooks/usePermissions';
+import { isDriverRoleSlug, getRoleDisplayLabel, findRoleBySlug } from '../utils/roles';
 
 export const UserFormScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { t } = useTranslation();
   const { isPlatformAdmin, loading: permissionsLoading } = usePermissions();
-  const { userId } = route.params || {};
+  const { userId, roleSlug: roleSlugParam } = route.params || {};
   const isEdit = !!userId;
 
   const [firstName, setFirstName] = useState('');
@@ -25,6 +26,9 @@ export const UserFormScreen = () => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
+  const [initialRoleSlugs, setInitialRoleSlugs] = useState<string[]>([]);
+  const [editingUserOrgId, setEditingUserOrgId] = useState<string | null>(null);
+  const userPickedRole = useRef(false);
   const [selectedOrgId, setSelectedOrgId] = useState(''); // For platform admins
   const [roles, setRoles] = useState<Role[]>([]);
   const [organizations, setOrganizations] = useState<{[key: string]: string}>({}); // Map org_id to org_name
@@ -33,20 +37,33 @@ export const UserFormScreen = () => {
   const [userLoading, setUserLoading] = useState(isEdit);
 
   useEffect(() => {
-    // Wait for permissions to load before fetching roles
     if (permissionsLoading) return;
+    if (isEdit && !editingUserOrgId && !isPlatformAdmin) return;
 
     fetchRoles();
     if (isPlatformAdmin) {
       fetchOrganizations();
     }
-  }, [permissionsLoading, isPlatformAdmin]);
+  }, [permissionsLoading, isPlatformAdmin, isEdit, editingUserOrgId]);
 
   useEffect(() => {
     if (isEdit && userId) {
       fetchUser();
     }
   }, []);
+
+  useEffect(() => {
+    if (!isEdit || userPickedRole.current || initialRoleSlugs.length === 0 || roles.length === 0) return;
+    const match = roles.find(role => initialRoleSlugs.includes(role.slug));
+    if (match) setSelectedRole(match.id);
+  }, [isEdit, initialRoleSlugs, roles]);
+
+  useEffect(() => {
+    if (isEdit || userPickedRole.current || roles.length === 0) return;
+    const slugToSelect = roleSlugParam ?? 'driver';
+    const match = findRoleBySlug(roles, slugToSelect);
+    if (match) setSelectedRole(match.id);
+  }, [isEdit, roleSlugParam, roles]);
 
   const fetchUser = async () => {
     setUserLoading(true);
@@ -56,7 +73,12 @@ export const UserFormScreen = () => {
       setLastName(userData.last_name || '');
       setEmail(userData.email || '');
       setPhone(userData.phone_number || '');
-      setSelectedRole(userData.role_id || '');
+      setEditingUserOrgId(userData.org_id ?? null);
+      if (userData.role_id) {
+        setSelectedRole(userData.role_id);
+      } else if (Array.isArray(userData.roles) && userData.roles.length > 0) {
+        setInitialRoleSlugs(userData.roles);
+      }
     } catch (error: any) {
       console.error('Failed to fetch user:', error);
       Alert.alert('Error', error.message || 'Failed to fetch user details');
@@ -101,10 +123,12 @@ export const UserFormScreen = () => {
       let orgId: string | null = null;
       
       if (!isPlatformAdmin) {
-        // For organization admins, get organization-specific roles
-        // Get org_id from user data instead of making API call
+        const orgIdForRoles = isEdit && editingUserOrgId ? editingUserOrgId : null;
         const userData = await authStore.getUser();
-        if (userData?.org_id) {
+        if (orgIdForRoles) {
+          orgId = orgIdForRoles;
+          rolesData = await getRolesWithGrants(orgIdForRoles);
+        } else if (userData?.org_id) {
           console.log('UserFormScreen: Using org_id from user data for roles');
           orgId = userData.org_id;
           rolesData = await getRolesWithGrants(userData.org_id);
@@ -129,25 +153,22 @@ export const UserFormScreen = () => {
       
       // Ensure rolesData is an array and not null/undefined
       if (rolesData && Array.isArray(rolesData)) {
+        let visibleRoles: Role[];
         if (isPlatformAdmin) {
-          // Platform admins see ALL roles including system roles
           console.log('UserFormScreen: Platform admin roles available:', rolesData.length);
-          setRoles(rolesData);
+          visibleRoles = rolesData;
         } else {
-          // Filter to only show roles that belong to this organization or are relevant to it
-          const filteredRoles = rolesData.filter(role => {
-            // Show roles that belong to this organization
-            if (role.org_id === orgId) {
-              return true;
-            }
-            // Show managed roles that are available to organizations (not platform-only)
-            if (role.is_managed && role.org_id === null) {
-              return true;
-            }
+          visibleRoles = rolesData.filter(role => {
+            if (role.org_id === orgId) return true;
+            if (role.is_managed && role.org_id === null) return true;
             return false;
           });
-          setRoles(filteredRoles);
         }
+        console.log(
+          'UserFormScreen roles:',
+          visibleRoles.map(r => ({ id: r.id, name: r.name, slug: r.slug })),
+        );
+        setRoles(visibleRoles);
       } else if (rolesData === null || rolesData === undefined) {
         console.warn('API returned null/undefined roles data');
         setRoles([]);
@@ -179,9 +200,10 @@ export const UserFormScreen = () => {
   const validatePhone = (phoneNumber: string): boolean => {
     if (!phoneNumber.trim()) return true; // optional field
     const normalized = normalizePhone(phoneNumber);
-    // +[country code][number], 7-15 digits after +
-    const phoneRegex = /^\+[1-9]\d{6,14}$/;
-    return phoneRegex.test(normalized);
+    if (normalized.startsWith('+250')) {
+      return /^\+2507[2389]\d{7}$/.test(normalized);
+    }
+    return /^\+[1-9]\d{6,14}$/.test(normalized);
   };
 
   const validateEmail = (emailAddress: string): boolean => {
@@ -216,23 +238,64 @@ export const UserFormScreen = () => {
 
     // Validate phone format if provided
     if (phone.trim() && !validatePhone(phone)) {
-      Alert.alert('Error', 'Please enter a valid phone number (e.g. 0780000000 or +250780000000)');
+      Alert.alert('Error', 'Please enter a valid Rwandan phone number (e.g. 0780012345 or +250780012345)');
       return;
     }
 
     setLoading(true);
     try {
       if (isEdit) {
-        // Update existing user
+        const selectedRoleObj = roles.find(role => role.id === selectedRole);
+        if (!selectedRoleObj) {
+          Alert.alert('Error', 'Please select a valid role.');
+          return;
+        }
+
+        const roleChanged = !initialRoleSlugs.includes(selectedRoleObj.slug);
+
+        console.log('UserFormScreen save:', {
+          roleChanged,
+          selectedRole: selectedRoleObj.name,
+          selectedSlug: selectedRoleObj.slug,
+          initialRoleSlugs,
+        });
+
         const updateData: UpdateUserRequest = {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          email: email.trim() || undefined,
-          phone_number: phone.trim() || undefined,
-          role_id: selectedRole
+          ...(phone.trim() && { phone_number: normalizePhone(phone) }),
         };
 
+        const isDriverRole = isDriverRoleSlug(selectedRoleObj.slug);
+
         await updateUser(userId, updateData);
+
+        if (roleChanged) {
+          await updateUserRoles(userId, {
+            roleId: selectedRoleObj.id,
+            roleSlug: selectedRoleObj.slug,
+          });
+
+          const refreshed = await getUserById(userId);
+          const updatedRoles: string[] = refreshed.roles ?? [];
+          if (!updatedRoles.includes(selectedRoleObj.slug)) {
+            Alert.alert(
+              'Role may not have changed',
+              `Profile saved, but the server still reports role "${updatedRoles.join(', ') || 'none'}". Some roles can only be set when inviting a new user.`,
+            );
+            return;
+          }
+
+          if (isDriverRole) {
+            Alert.alert(
+              'Driver role saved',
+              'This user now has the Driver role for permissions, but users originally invited as staff or document-reviewer often cannot be assigned to buses (DRIVER_NOT_FOUND). For a working bus driver, invite a new user with the Driver role using a new email.',
+              [{ text: 'OK', onPress: () => navigation.goBack() }],
+            );
+            return;
+          }
+        }
+
         Alert.alert('Success', 'User updated successfully');
       } else {
         // Get organization ID for invitation
@@ -271,14 +334,19 @@ export const UserFormScreen = () => {
           return;
         }
 
-        // Invite new user instead of creating directly
+        console.log('UserFormScreen invite:', {
+          selectedName: selectedRoleObj.name,
+          selectedSlug: selectedRoleObj.slug,
+          selectedId: selectedRoleObj.id,
+        });
+
         const inviteData = {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           org_id: orgId,
-          role_slugs: [selectedRoleObj.slug],  // API requires array
+          role_slugs: [selectedRoleObj.slug],
           ...(email.trim() && { email: email.trim() }),
-          ...(phone.trim() && { phone_number: normalizePhone(phone) })
+          ...(phone.trim() && { phone_number: normalizePhone(phone) }),
         };
 
         console.log('Sending invitation with data:', inviteData);
@@ -306,7 +374,14 @@ export const UserFormScreen = () => {
       
       navigation.goBack();
     } catch (error: any) {
-      // error.message already contains the backend message from apiClient
+      const errorCode = error.data?.error?.code;
+      if (errorCode === 'EMAIL_ALREADY_REGISTERED') {
+        Alert.alert(
+          'Email already registered',
+          'This email is already linked to a Katisha account. Use another email, or manage the existing user from User Management.',
+        );
+        return;
+      }
       Alert.alert('Error', error.message || `Failed to ${isEdit ? 'update' : 'invite'} user`);
     } finally {
       setLoading(false);
@@ -358,7 +433,22 @@ export const UserFormScreen = () => {
           <Typography variant="h2" style={styles.sectionTitle}>Basic Information</Typography>
           <InputField label="First Name" value={firstName} onChangeText={setFirstName} placeholder="e.g. John" />
           <InputField label="Last Name" value={lastName} onChangeText={setLastName} placeholder="e.g. Doe" />
-          <InputField label="Email Address" value={email} onChangeText={setEmail} placeholder="john.doe@example.com" keyboardType="email-address" />
+          {isEdit ? (
+            <View style={styles.inputContainer}>
+              <Typography variant="caption" style={styles.label}>Email Address</Typography>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={email}
+                editable={false}
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <Typography variant="caption" color={COLORS.textSecondary} style={{ marginTop: 4 }}>
+                Email cannot be changed here. Use Login Channel settings for the user.
+              </Typography>
+            </View>
+          ) : (
+            <InputField label="Email Address" value={email} onChangeText={setEmail} placeholder="john.doe@example.com" keyboardType="email-address" />
+          )}
           <View style={styles.inputContainer}>
             <Typography variant="caption" style={styles.label}>Phone Number</Typography>
             <TextInput
@@ -389,6 +479,16 @@ export const UserFormScreen = () => {
           <Typography variant="h2" style={styles.sectionTitle}>Role Assignment</Typography>
           <View style={styles.inputContainer}>
             <Typography variant="caption" style={styles.label}>Role *</Typography>
+            {!isEdit && !rolesLoading && roles.length > 0 && !findRoleBySlug(roles, 'driver') && (
+              <Typography variant="caption" color={COLORS.error} style={{ marginBottom: 8 }}>
+                Platform role "driver" is not available for your organization. Contact Katisha support.
+              </Typography>
+            )}
+            {!isEdit && (
+              <Typography variant="caption" color={COLORS.textSecondary} style={{ marginBottom: 8 }}>
+                For bus drivers, pick the platform role with slug: driver (lowercase). Do not create a custom role named Driver.
+              </Typography>
+            )}
             <View style={styles.roleContainer}>
               {rolesLoading || permissionsLoading ? (
                 <View style={styles.loadingContainer}>
@@ -397,38 +497,46 @@ export const UserFormScreen = () => {
                     Loading roles...
                   </Typography>
                 </View>
-              ) : (roles && Array.isArray(roles) && roles.length > 0) ? roles.map(r => {
-                const isSystemRole = r.is_managed && r.org_id === null;
-                const isDisabled = isSystemRole && !isPlatformAdmin;
-                return (
+              ) : (roles && Array.isArray(roles) && roles.length > 0) ? [...roles]
+                .sort((a, b) => {
+                  if (isDriverRoleSlug(a.slug)) return -1;
+                  if (isDriverRoleSlug(b.slug)) return 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map(r => (
                   <TouchableOpacity 
                     key={r.id}
                     style={[
                       styles.roleButton,
                       selectedRole === r.id && styles.roleButtonActive,
-                      isDisabled && styles.roleButtonDisabled,
                     ]}
-                    onPress={() => !isDisabled && setSelectedRole(r.id)}
-                    disabled={isDisabled}
+                    onPress={() => {
+                      userPickedRole.current = true;
+                      setSelectedRole(r.id);
+                    }}
                   >
                     <View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Typography variant="body" color={
-                          isDisabled ? COLORS.textSecondary :
                           selectedRole === r.id ? COLORS.white : COLORS.text
                         }>
-                          {r.name}
+                          {getRoleDisplayLabel(r)}
                         </Typography>
-                        {isSystemRole && (
+                        {r.name && r.name.toLowerCase() !== getRoleDisplayLabel(r).toLowerCase() && (
+                          <Typography variant="caption" color={selectedRole === r.id ? COLORS.white : COLORS.textSecondary}>
+                            API name: {r.name}
+                          </Typography>
+                        )}
+                        {r.is_managed && r.org_id === null && (
                           <View style={[
                             styles.systemBadge,
-                            selectedRole === r.id && !isDisabled && styles.systemBadgeActive
+                            selectedRole === r.id && styles.systemBadgeActive
                           ]}>
                             <Typography variant="caption" style={[
                               styles.systemBadgeText,
-                              selectedRole === r.id && !isDisabled && { color: COLORS.brand }
+                              selectedRole === r.id && { color: COLORS.brand }
                             ]}>
-                              SYSTEM
+                              PLATFORM
                             </Typography>
                           </View>
                         )}
@@ -438,15 +546,27 @@ export const UserFormScreen = () => {
                           {organizations[r.org_id] || r.org_id}
                         </Typography>
                       )}
+                      <Typography variant="caption" color={selectedRole === r.id ? COLORS.white : COLORS.textSecondary}>
+                        slug: {r.slug}
+                        {isDriverRoleSlug(r.slug) ? ' · platform bus driver' : ''}
+                      </Typography>
                     </View>
                   </TouchableOpacity>
-                );
-              }) : (
+                )) : (
                 <Typography variant="caption" color={COLORS.textSecondary} style={{ padding: 16, textAlign: 'center' }}>
                   No roles available. Please create roles in Role Management first.
                 </Typography>
               )}
             </View>
+            {selectedRole && (() => {
+              const selected = roles.find(r => r.id === selectedRole);
+              if (!selected) return null;
+              return (
+                <Typography variant="caption" color={COLORS.brand} style={{ marginTop: 8 }}>
+                  Selected: {getRoleDisplayLabel(selected)} (slug: {selected.slug})
+                </Typography>
+              );
+            })()}
           </View>
           <View style={styles.roleNote}>
             <Icon name="info" size={16} color={COLORS.brand} />
@@ -551,6 +671,10 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#EF4444',
     backgroundColor: '#FFF5F5',
+  },
+  inputDisabled: {
+    backgroundColor: '#EDF2F7',
+    color: COLORS.textSecondary,
   },
   roleContainer: {
     flexDirection: 'row',

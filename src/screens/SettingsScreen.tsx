@@ -13,16 +13,12 @@ import { usePermissions } from '../hooks/usePermissions';
 import { authStore } from '../api/authStore';
 import { useAuth } from '../contexts/AuthContext';
 
-const LANGUAGES = [
-  { code: 'rw', label: 'Kinyarwanda', flag: '🇷🇼' },
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-];
+import { changeAppLanguage, SUPPORTED_LANGUAGES } from '../i18n';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
-  const { logout } = useAuth();
+  const { logout, isAuthenticated, loading: authLoading } = useAuth();
   const { organization, isPlatformAdmin: orgIsPlatformAdmin } = useOrganization();
   const {
     user: permissionUser,
@@ -44,9 +40,15 @@ export const SettingsScreen: React.FC = () => {
   const [sending2FA, setSending2FA] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     fetchUserProfile();
     fetchNotificationCount();
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   // Update organization logo when organization changes
   useEffect(() => {
@@ -135,15 +137,13 @@ export const SettingsScreen: React.FC = () => {
   const handleLogoutAll = async () => {
     setLoggingOut(true);
     try {
-      // Call logout all API to invalidate all sessions
-      await apiClient('/auth/logout-all', { method: 'POST' });
-      
-      // Then use AuthContext logout for local cleanup
+      const token = await authStore.getToken();
+      if (token) {
+        await apiClient('/auth/logout-all', { method: 'POST' });
+      }
       await logout();
-      // Navigation will be handled automatically by AuthContext
     } catch (error: any) {
       console.error('Logout all API error:', error);
-      // Continue with local logout even if API fails
       await logout();
     } finally {
       setLoggingOut(false);
@@ -282,7 +282,7 @@ export const SettingsScreen: React.FC = () => {
       <TouchableOpacity
         style={[styles.item, isActive && styles.itemActive]}
         onPress={() => {
-          i18n.changeLanguage(lang.code);
+          void changeAppLanguage(lang.code);
         }}
       >
         <View style={styles.itemLeft}>
@@ -435,9 +435,9 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Language Switcher */}
         <Typography variant="caption" style={styles.sectionHeader}>{t('settings.sectionLanguage')}</Typography>
-        <LanguageItem lang={LANGUAGES[0]} />
-        <LanguageItem lang={LANGUAGES[1]} />
-        <LanguageItem lang={LANGUAGES[2]} />
+        <LanguageItem lang={SUPPORTED_LANGUAGES[0]} />
+        <LanguageItem lang={SUPPORTED_LANGUAGES[1]} />
+        <LanguageItem lang={SUPPORTED_LANGUAGES[2]} />
 
         <TouchableOpacity 
           style={[styles.logoutButton, loggingOut && { opacity: 0.7 }]} 

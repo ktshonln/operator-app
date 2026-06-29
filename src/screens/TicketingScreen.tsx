@@ -29,10 +29,10 @@ interface OrgOption {
 
 const STATUS_META: Record<string, { color: string; labelKey?: string; fallback: string }> = {
   confirmed: { color: COLORS.brand, labelKey: 'ticketing.statusBooked', fallback: 'Booked' },
-  pending: { color: '#F59E0B', fallback: 'Pending' },
+  pending: { color: '#F59E0B', labelKey: 'ticketing.statusPending', fallback: 'Pending' },
   active: { color: '#F59E0B', labelKey: 'ticketing.statusTransit', fallback: 'In transit' },
   completed: { color: '#10B981', labelKey: 'ticketing.statusDone', fallback: 'Done' },
-  cancelled: { color: '#EF4444', fallback: 'Cancelled' },
+  cancelled: { color: '#EF4444', labelKey: 'ticketing.statusCancelled', fallback: 'Cancelled' },
 };
 
 const getRouteLabel = (ticket: ApiTicket) => {
@@ -94,18 +94,18 @@ export const TicketingScreen: React.FC = () => {
       setTickets(data);
     } catch (error: any) {
       console.error('Failed to fetch tickets:', error);
-      const errorMessage = error.message || 'Unable to load tickets';
+      const errorMessage = error.message || t('ticketing.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
       Alert.alert(
-        'Error Loading Tickets',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        t('ticketing.errorLoading'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
       );
       setTickets([]);
     } finally {
       if (showFullLoader) setLoading(false);
       setRefreshing(false);
     }
-  }, [effectiveOrgId, search]);
+  }, [effectiveOrgId, search, t]);
 
   React.useEffect(() => {
     if (permissionsLoading || isFirstLoad.current) return;
@@ -184,7 +184,7 @@ export const TicketingScreen: React.FC = () => {
           </Typography>
           <Typography variant="caption" color={COLORS.textMuted} style={{ marginTop: 2 }}>
             {item.boarding_stop.name} → {item.alighting_stop.name}
-            {' • '}{item.seats_count} seat{item.seats_count > 1 ? 's' : ''}
+            {' • '}{item.seats_count} {item.seats_count > 1 ? t('common.seats') : t('common.seat')}
             {item.org?.name ? ` • ${item.org.name}` : ''}
           </Typography>
         </View>
@@ -211,7 +211,7 @@ export const TicketingScreen: React.FC = () => {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={COLORS.brand} />
           <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
-            Loading tickets...
+            {t('ticketing.loadingTickets')}
           </Typography>
         </View>
       </View>
@@ -245,7 +245,7 @@ export const TicketingScreen: React.FC = () => {
 
       {isPlatformAdmin && (
         <View style={styles.filterSection}>
-          <Typography variant="caption" style={styles.filterLabel}>ORGANIZATION</Typography>
+          <Typography variant="caption" style={styles.filterLabel}>{t('common.organization').toUpperCase()}</Typography>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             <TouchableOpacity
               style={[styles.filterChip, !selectedOrg && styles.filterChipActive]}
@@ -255,7 +255,7 @@ export const TicketingScreen: React.FC = () => {
                 variant="caption"
                 style={{ fontWeight: '700', color: !selectedOrg ? COLORS.white : COLORS.textSecondary }}
               >
-                All
+                {t('common.all')}
               </Typography>
             </TouchableOpacity>
             {organizations.map(org => (
@@ -291,11 +291,11 @@ export const TicketingScreen: React.FC = () => {
           <View style={styles.empty}>
             <Icon name="ticket" size={40} color={COLORS.textMuted} />
             <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
-              No tickets found
+              {t('ticketing.noTickets')}
             </Typography>
             {isPlatformAdmin && !selectedOrg && (
               <Typography variant="caption" color={COLORS.textMuted} style={{ marginTop: 6, textAlign: 'center' }}>
-                Try filtering by organization or check back after bookings are made.
+                {t('ticketing.noTicketsHint')}
               </Typography>
             )}
           </View>

@@ -16,6 +16,26 @@ export interface User extends BaseUser {
   permissions: UserPermission[];
 }
 
+/** Global registry resources — org *:*:org does not include these (API: platform-admin only) */
+const PLATFORM_REGISTRY_SUBJECTS = new Set(['Location']);
+
+/**
+ * Org admins carry *:*:org — full access within their organization (all actions/subjects).
+ */
+export const hasOrgWideAccess = (user: User | null): boolean => {
+  if (!user?.org_id) return false;
+
+  if (user.roles?.includes('org-admin')) return true;
+
+  return user.permissions?.some(
+    perm =>
+      !perm.inverted &&
+      perm.action.includes('manage') &&
+      perm.subject.includes('all') &&
+      perm.conditions?.org_id === user.org_id,
+  ) ?? false;
+};
+
 /**
  * Check if user has permission to perform an action on a subject
  */
@@ -34,10 +54,22 @@ export const hasPermission = (
     perm => 
       perm.action.includes('manage') && 
       perm.subject.includes('all') && 
-      !perm.inverted
+      !perm.inverted &&
+      (!perm.conditions?.org_id || perm.conditions.org_id === null)
   );
 
   if (hasManageAll) {
+    return true;
+  }
+
+  // Org admin *:*:org — full access within their org (bus:create, users, roles, etc.)
+  if (hasOrgWideAccess(user)) {
+    if (subject === 'Org' && resourceId && resourceId !== user.org_id) {
+      return false;
+    }
+    if (PLATFORM_REGISTRY_SUBJECTS.has(subject)) {
+      return false;
+    }
     return true;
   }
 
@@ -166,27 +198,43 @@ export const canManageNotifications = (user: User | null): boolean => {
 };
 
 /**
- * Check if user is platform admin
+ * Platform admin = platform-admin role OR *:*:platform (manage all with no org condition).
+ * Org admins also have manage+all but scoped to org_id — they are NOT platform admins.
  */
 export const isPlatformAdmin = (user: User | null): boolean => {
   if (!user) return false;
-  
-  return user.roles.includes('platform-admin') || 
-         user.permissions.some(
-           perm => 
-             perm.action.includes('manage') && 
-             perm.subject.includes('all') && 
-             !perm.inverted
-         );
+
+  if (user.roles?.includes('platform-admin')) return true;
+
+  return user.permissions?.some(
+    perm =>
+      !perm.inverted &&
+      perm.action.includes('manage') &&
+      perm.subject.includes('all') &&
+      (!perm.conditions?.org_id || perm.conditions.org_id === null),
+  ) ?? false;
 };
 
 /**
- * Check if user is organization admin
+ * Check if user is organization admin (org-scoped full access)
  */
 export const isOrgAdmin = (user: User | null): boolean => {
-  if (!user) return false;
-  
-  return user.roles.includes('org-admin') && user.org_id !== null;
+  return hasOrgWideAccess(user);
+};
+
+/**
+ * Check if user can manage fleet / buses within their org
+ */
+export const canManageBuses = (user: User | null): boolean => {
+  return hasPermission(user, 'create', 'Bus') || hasPermission(user, 'manage', 'Bus');
+};
+
+/**
+ * Locations are a platform-wide stop registry — only platform admins may create/update/delete.
+ * @see Katisha trip-service: Locations tag (platform-admin only for writes)
+ */
+export const canManageLocations = (user: User | null): boolean => {
+  return isPlatformAdmin(user);
 };
 
 /**

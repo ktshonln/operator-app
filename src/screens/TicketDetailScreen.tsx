@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
@@ -19,6 +20,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export const TicketDetailScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const ticketId: string = route.params?.ticketId ?? route.params?.ticket?.id;
@@ -39,7 +41,7 @@ export const TicketDetailScreen: React.FC = () => {
         const data = await getTicketById(ticketId);
         setTicket(data);
       } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to load ticket');
+        Alert.alert(t('common.error'), error.message || t('ticketing.loadFailed'));
       } finally {
         setLoading(false);
       }
@@ -49,19 +51,19 @@ export const TicketDetailScreen: React.FC = () => {
   }, [ticketId]);
 
   const handleCancel = () => {
-    Alert.alert('Cancel ticket', 'Cancel this ticket?', [
-      { text: 'No', style: 'cancel' },
+    Alert.alert(t('ticketing.cancelTitle'), t('ticketing.cancelConfirm'), [
+      { text: t('common.no'), style: 'cancel' },
       {
-        text: 'Cancel ticket',
+        text: t('ticketing.cancelAction'),
         style: 'destructive',
         onPress: async () => {
           try {
             setActing(true);
             const updated = await cancelTicket(ticketId);
             setTicket(prev => ({ ...prev, ...updated, id: updated.id || ticketId }));
-            Alert.alert('Cancelled', 'Ticket has been cancelled.');
+            Alert.alert(t('ticketing.cancelled'), t('ticketing.cancelledMessage'));
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to cancel ticket');
+            Alert.alert(t('common.error'), error.message || t('ticketing.cancelFailed'));
           } finally {
             setActing(false);
           }
@@ -71,18 +73,18 @@ export const TicketDetailScreen: React.FC = () => {
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete ticket', 'Delete this ticket permanently?', [
-      { text: 'No', style: 'cancel' },
+    Alert.alert(t('ticketing.deleteTitle'), t('ticketing.deleteConfirm'), [
+      { text: t('common.no'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             setActing(true);
             await deleteTicket(ticketId);
-            Alert.alert('Deleted', 'Ticket deleted.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+            Alert.alert(t('ticketing.deleted'), t('ticketing.deletedMessage'), [{ text: t('common.ok'), onPress: () => navigation.goBack() }]);
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to delete ticket');
+            Alert.alert(t('common.error'), error.message || t('ticketing.deleteFailed'));
           } finally {
             setActing(false);
           }
@@ -94,7 +96,7 @@ export const TicketDetailScreen: React.FC = () => {
   if (loading || !ticket) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header title="Ticket" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <Header title={t('ticketing.ticket')} showBack onBack={() => navigation.goBack()} rightElement={<View />} />
         <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.brand} /></View>
       </SafeAreaView>
     );
@@ -111,7 +113,7 @@ export const TicketDetailScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Ticket Detail" showBack onBack={() => navigation.goBack()} rightIcon="trash" onRightPress={handleDelete} />
+      <Header title={t('ticketing.detailTitle')} showBack onBack={() => navigation.goBack()} rightIcon="trash" onRightPress={handleDelete} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
           <Typography variant="caption" style={{ color: sc.text, fontWeight: '700' }}>
@@ -120,19 +122,19 @@ export const TicketDetailScreen: React.FC = () => {
         </View>
 
         <View style={styles.card}>
-          <Row label="Ticket #" value={displayId} />
-          <Row label="Passenger" value={ticket.passenger_name || '—'} />
-          <Row label="Phone" value={ticket.phone || '—'} />
-          <Row label="Route" value={routeLabel} />
-          {departure && <Row label="Departure" value={departure.toLocaleString('en-GB')} />}
-          <Row label="From" value={boardingName} />
-          <Row label="To" value={alightingName} />
-          <Row label="Seats" value={String(ticket.seats_count ?? 1)} />
-          <Row label="Amount" value={`${ticket.currency ?? 'RWF'} ${Number(ticket.amount ?? 0).toLocaleString()}`} />
-          <Row label="Payment" value={ticket.payment_method || '—'} />
-          {ticket.trip?.bus?.plate && <Row label="Bus" value={ticket.trip.bus.plate} />}
-          {ticket.org?.name && <Row label="Organization" value={ticket.org.name} />}
-          <Row label="Booked" value={new Date(ticket.booked_at ?? Date.now()).toLocaleString('en-GB')} />
+          <Row label={t('ticketing.ticketNumber')} value={displayId} />
+          <Row label={t('ticketing.passenger')} value={ticket.passenger_name || '—'} />
+          <Row label={t('ticketing.phone')} value={ticket.phone || '—'} />
+          <Row label={t('ticketing.route')} value={routeLabel} />
+          {departure && <Row label={t('ticketing.departure')} value={departure.toLocaleString('en-GB')} />}
+          <Row label={t('ticketing.from')} value={boardingName} />
+          <Row label={t('ticketing.to')} value={alightingName} />
+          <Row label={t('common.seats')} value={String(ticket.seats_count ?? 1)} />
+          <Row label={t('ticketing.amount')} value={`${ticket.currency ?? 'RWF'} ${Number(ticket.amount ?? 0).toLocaleString()}`} />
+          <Row label={t('ticketing.payment')} value={ticket.payment_method || '—'} />
+          {ticket.trip?.bus?.plate && <Row label={t('ticketing.bus')} value={ticket.trip.bus.plate} />}
+          {ticket.org?.name && <Row label={t('common.organization')} value={ticket.org.name} />}
+          <Row label={t('ticketing.booked')} value={new Date(ticket.booked_at ?? Date.now()).toLocaleString('en-GB')} />
         </View>
 
         {printId ? (
@@ -143,7 +145,7 @@ export const TicketDetailScreen: React.FC = () => {
 
         {canCancel && (
           <TouchableOpacity style={[styles.cancelBtn, acting && { opacity: 0.7 }]} onPress={handleCancel} disabled={acting}>
-            <Typography variant="body" style={{ color: '#EF4444', fontWeight: '700' }}>Cancel Ticket</Typography>
+            <Typography variant="body" style={{ color: '#EF4444', fontWeight: '700' }}>{t('ticketing.cancelTicket')}</Typography>
           </TouchableOpacity>
         )}
       </ScrollView>

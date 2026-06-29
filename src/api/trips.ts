@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { withOrgIdQuery } from './orgScope';
 import { Trip } from '../mock/transportData';
 
 export interface TripTicket {
@@ -88,19 +89,33 @@ export const getTripById = async (tripId: string): Promise<Trip> => {
   return normalizeTrip(response);
 };
 
-export const createTripSeries = async (tripData: {
-  route_id: string;
-  bus_id?: string;
-  driver_id?: string;
-  total_seats?: number;
-  is_express?: boolean;
-  departure_time: string;
-  starts_on: string;
-  repeat_daily?: boolean;
-  frequency_minutes?: number;
-  ends_on?: string;
-}) => {
-  const response = await apiClient('/trips', {
+export const createTripSeries = async (
+  tripData: {
+    route_id: string;
+    bus_id?: string;
+    driver_id?: string;
+    total_seats?: number;
+    is_express?: boolean;
+    departure_time: string;
+    starts_on: string;
+    repeat_daily?: boolean;
+    frequency_minutes?: number;
+    ends_on?: string;
+  },
+  options?: { orgId?: string },
+) => {
+  // Org admins: JWT supplies org — never add org_id query (causes ORG_NOT_FOUND if wrong).
+  const endpoint = options?.orgId ? withOrgIdQuery('/trips', options.orgId) : '/trips';
+
+  console.log('createTripSeries request:', {
+    endpoint,
+    route_id: tripData.route_id,
+    bus_id: tripData.bus_id,
+    total_seats: tripData.total_seats,
+    orgId: options?.orgId ?? '(from JWT)',
+  });
+
+  const response = await apiClient(endpoint, {
     method: 'POST',
     body: tripData,
   });

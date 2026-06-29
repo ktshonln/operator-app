@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, FlatList, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
@@ -10,6 +10,9 @@ import { getPrices, updatePrice } from '../api';
 
 export const PriceMatrixScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const routeParams = useRoute<any>().params;
+  const routeId = routeParams?.routeId as string | undefined;
+  const routeName = routeParams?.routeName as string | undefined;
   const [prices, setPrices] = useState<Price[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -17,6 +20,15 @@ export const PriceMatrixScreen: React.FC = () => {
   const [filterDest, setFilterDest] = useState('');
   const [loading, setLoading] = useState(true);
   const isFirstLoad = useRef(true);
+
+  useEffect(() => {
+    if (!routeName) return;
+    const parts = routeName.split(/\s*[—–-]\s*/).map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      setFilterOrigin(parts[0]);
+      setFilterDest(parts[parts.length - 1]);
+    }
+  }, [routeName]);
 
   const fetchPrices = useCallback(async (showFullLoader = true) => {
     try {
@@ -37,7 +49,7 @@ export const PriceMatrixScreen: React.FC = () => {
     } finally {
       if (showFullLoader) setLoading(false);
     }
-  }, [navigation]);
+  }, [navigation, routeId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,7 +134,7 @@ export const PriceMatrixScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <Header
-          title="Price Matrix"
+          title={routeName ? `Prices — ${routeName}` : 'Price Matrix'}
           showBack
           onBack={() => navigation.goBack()}
           rightElement={<View />}
@@ -140,7 +152,7 @@ export const PriceMatrixScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Price Matrix"
+        title={routeName ? `Prices — ${routeName}` : 'Price Matrix'}
         showBack
         onBack={() => navigation.goBack()}
         rightElement={<View />}
@@ -149,6 +161,10 @@ export const PriceMatrixScreen: React.FC = () => {
       <View style={styles.summary}>
         <Typography variant="caption" color={COLORS.textSecondary}>
           {filtered.length} of {prices.length} stop-pair prices
+          {routeName ? ` · ${routeName}` : ''}
+        </Typography>
+        <Typography variant="caption" color={COLORS.textMuted} style={{ marginTop: 4 }}>
+          Origin = boarding (first stop). Destination = alighting (later stop).
         </Typography>
       </View>
 
@@ -189,8 +205,10 @@ export const PriceMatrixScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Icon name="dollar-sign" size={40} color={COLORS.textMuted} />
-            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
-              No prices found
+            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12, textAlign: 'center' }}>
+              {prices.length === 0
+                ? 'No fares yet for this route. Open the route and use "Set route fares" to add them.'
+                : 'No prices match your filters. Try Braserie as Origin and Akanyaru as Destination (route direction).'}
             </Typography>
           </View>
         }

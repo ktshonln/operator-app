@@ -2,8 +2,8 @@ import { apiClient } from './client';
 import { Price } from '../mock/transportData';
 
 export const getPrices = async (params?: {
-  boarding_stop?: string;
-  alighting_stop?: string;
+  boarding_stop_id?: string;
+  alighting_stop_id?: string;
 }) => {
   const allPrices: Price[] = [];
   let page = 1;
@@ -15,11 +15,11 @@ export const getPrices = async (params?: {
       page: String(page),
       limit: String(limit),
     });
-    if (params?.boarding_stop) {
-      searchParams.append('boarding_stop', params.boarding_stop);
+    if (params?.boarding_stop_id) {
+      searchParams.append('boarding_stop_id', params.boarding_stop_id);
     }
-    if (params?.alighting_stop) {
-      searchParams.append('alighting_stop', params.alighting_stop);
+    if (params?.alighting_stop_id) {
+      searchParams.append('alighting_stop_id', params.alighting_stop_id);
     }
 
     const response = await apiClient(`/prices?${searchParams.toString()}`, {
@@ -43,6 +43,32 @@ export const getPrices = async (params?: {
   } while (allPrices.length < total);
 
   return allPrices;
+};
+
+/** Create or update one stop-pair fare (org-scoped) */
+export const upsertPrice = async (data: {
+  boarding_stop_id: string;
+  alighting_stop_id: string;
+  amount: number;
+}) => {
+  return apiClient('/prices', {
+    method: 'PUT',
+    body: data,
+  });
+};
+
+/** Seed multiple stop-pair fares — body is { prices: [...] } only (no route_id) */
+export const bulkUpsertPrices = async (
+  prices: Array<{
+    boarding_stop_id: string;
+    alighting_stop_id: string;
+    amount: number;
+  }>,
+) => {
+  return apiClient('/prices/bulk', {
+    method: 'POST',
+    body: { prices },
+  });
 };
 
 export const getPricesCount = async () => {

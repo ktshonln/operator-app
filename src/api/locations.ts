@@ -1,32 +1,52 @@
 import { apiClient } from './client';
 
-// Location Management API functions
-export const getLocations = async (params?: { q?: string }) => {
-  let endpoint = '/locations';
-  
-  if (params?.q) {
-    endpoint += `?q=${encodeURIComponent(params.q)}`;
-  }
-  
-  const response = await apiClient(endpoint, {
-    method: 'GET',
-  });
-  
-  // Paginated API: { data: [...], total, page, limit }
+const extractLocationBatch = (response: any): { batch: any[]; total: number } => {
   if (response?.data && Array.isArray(response.data)) {
-    return response.data;
+    return { batch: response.data, total: response.total ?? response.data.length };
   }
-
-  // Legacy shape: { locations: [...] }
   if (response?.locations && Array.isArray(response.locations)) {
-    return response.locations;
+    return { batch: response.locations, total: response.locations.length };
   }
-
   if (Array.isArray(response)) {
-    return response;
+    return { batch: response, total: response.length };
   }
+  return { batch: [], total: 0 };
+};
 
-  return [];
+export const getLocations = async (params?: { q?: string }) => {
+  const allLocations: any[] = [];
+  let page = 1;
+  let total = 0;
+  const limit = 100;
+
+  do {
+    const searchParams = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (params?.q) {
+      searchParams.append('q', params.q);
+    }
+
+    const response = await apiClient(`/locations?${searchParams.toString()}`, {
+      method: 'GET',
+    });
+
+    const { batch, total: responseTotal } = extractLocationBatch(response);
+    if (page === 1) {
+      total = responseTotal;
+    }
+
+    allLocations.push(...batch);
+    page += 1;
+  } while (allLocations.length < total);
+
+  return allLocations;
+};
+
+export const getLocationsCount = async () => {
+  const response = await apiClient('/locations?limit=1', { method: 'GET' });
+  return response?.total ?? response?.data?.length ?? 0;
 };
 
 export const createLocation = async (locationData: {
