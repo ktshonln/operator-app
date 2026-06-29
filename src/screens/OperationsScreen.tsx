@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon, IconName } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { getLocations, getRoutes, getPricesCount, getBuses } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface TileProps {
   icon: IconName;
@@ -55,7 +57,9 @@ const NavRow: React.FC<NavRowProps> = ({ icon, label, description, color, onPres
 );
 
 export const OperationsScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const { canManageLocations } = usePermissions();
   const [locationsCount, setLocationsCount] = useState(0);
   const [routesCount, setRoutesCount] = useState(0);
   const [activeRoutesCount, setActiveRoutesCount] = useState(0);
@@ -105,12 +109,12 @@ export const OperationsScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <Header 
-          title="Operations" 
+          title={t('operations.title')} 
           rightElement={<View />}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.brand} />
-          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading...</Typography>
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>{t('common.loading')}</Typography>
         </View>
       </SafeAreaView>
     );
@@ -119,27 +123,27 @@ export const OperationsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header 
-        title="Operations" 
+        title={t('operations.title')} 
         rightElement={<View />}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Summary tiles */}
-        <Typography variant="caption" style={styles.sectionLabel}>OVERVIEW</Typography>
+        <Typography variant="caption" style={styles.sectionLabel}>{t('operations.overview')}</Typography>
         <View style={styles.tilesRow}>
           <Tile
             icon="map"
-            label="Locations"
+            label={t('operations.locations')}
             count={locationsCount}
-            subtitle="Stop points"
+            subtitle={t('operations.stopPoints')}
             color="#8B5CF6"
             onPress={() => navigation.navigate('LocationsList')}
           />
           <Tile
             icon="arrow-right"
-            label="Routes"
+            label={t('operations.routes')}
             count={activeRoutesCount}
-            subtitle={`${routesCount} total`}
+            subtitle={`${routesCount} ${t('common.total')}`}
             color={COLORS.brand}
             onPress={() => navigation.navigate('RoutesList')}
           />
@@ -147,78 +151,78 @@ export const OperationsScreen: React.FC = () => {
         <View style={styles.tilesRow}>
           <Tile
             icon="bus"
-            label="Buses"
+            label={t('operations.buses')}
             count={activeBuses}
-            subtitle={`${busesCount} total`}
+            subtitle={`${busesCount} ${t('common.total')}`}
             color="#10B981"
             onPress={() => navigation.navigate('Main', { screen: 'Fleets' })}
           />
           <Tile
             icon="dollar-sign"
-            label="Prices"
+            label={t('operations.prices')}
             count={pricesCount}
-            subtitle={incompletePrices > 0 ? `${incompletePrices} routes incomplete` : 'All complete'}
+            subtitle={incompletePrices > 0 ? t('operations.routesIncomplete', { count: incompletePrices }) : t('operations.allComplete')}
             color={incompletePrices > 0 ? '#F59E0B' : '#10B981'}
             onPress={() => navigation.navigate('PriceMatrix')}
           />
         </View>
 
         {/* Quick navigation */}
-        <Typography variant="caption" style={[styles.sectionLabel, { marginTop: 20 }]}>MANAGE</Typography>
+        <Typography variant="caption" style={[styles.sectionLabel, { marginTop: 20 }]}>{t('operations.manage')}</Typography>
         <View style={styles.navCard}>
           <NavRow
             icon="map"
-            label="Locations"
-            description="Manage stop points and GPS coordinates"
+            label={t('operations.locations')}
+            description={canManageLocations ? t('operations.locationsDesc') : t('operations.locationsBrowseDesc')}
             color="#8B5CF6"
             onPress={() => navigation.navigate('LocationsList')}
           />
           <NavRow
             icon="arrow-right"
-            label="Routes"
-            description="Create and manage bus routes"
+            label={t('operations.routes')}
+            description={t('operations.routesDesc')}
             color={COLORS.brand}
             onPress={() => navigation.navigate('RoutesList')}
           />
           <NavRow
             icon="dollar-sign"
-            label="Price Matrix"
-            description="Set stop-pair prices across all routes"
+            label={t('operations.priceMatrix')}
+            description={t('operations.priceMatrixDesc')}
             color="#F59E0B"
             onPress={() => navigation.navigate('PriceMatrix')}
           />
           <NavRow
             icon="bus"
-            label="Fleet"
-            description="Manage buses and driver assignments"
+            label={t('operations.fleet')}
+            description={t('operations.fleetDesc')}
             color="#10B981"
             onPress={() => navigation.navigate('Main', { screen: 'Fleets' })}
           />
           <NavRow
             icon="map"
-            label="Trip Calendar"
-            description="View and create scheduled trips"
+            label={t('operations.tripCalendar')}
+            description={t('operations.tripCalendarDesc')}
             color="#EF4444"
             onPress={() => navigation.navigate('Main', { screen: 'Trips' })}
           />
           <NavRow
             icon="printer"
-            label="Print Ticket Demo"
-            description="Test ticket printing functionality"
+            label={t('operations.printTicketDemo')}
+            description={t('operations.printTicketDemoDesc')}
             color="#6366F1"
             onPress={() => navigation.navigate('PrintTicketDemo')}
           />
           <NavRow
             icon="card"
-            label="Wallet"
-            description="Balance, payouts, and transaction history"
+            label={t('operations.wallet')}
+            description={t('operations.walletDesc')}
             color="#0EA5E9"
             onPress={() => navigation.navigate('Wallet')}
           />
           <NavRow
             icon="business"
-            label="Bank Accounts"
-            description="Manage payout bank accounts"
+            label={t('operations.bankAccounts')}
+            description={t('operations.bankAccountsDesc')}
             color="#7C3AED"
             onPress={() => navigation.navigate('BankAccounts')}
           />
@@ -230,10 +234,10 @@ export const OperationsScreen: React.FC = () => {
             <Icon name="alert" size={18} color="#F59E0B" />
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Typography variant="body" style={{ fontWeight: '700', color: '#F57C00' }}>
-                {incompletePrices} route{incompletePrices > 1 ? 's' : ''} with incomplete prices
+                {t('operations.incompletePricesTitle', { count: incompletePrices })}
               </Typography>
               <Typography variant="caption" color={COLORS.textSecondary}>
-                Routes cannot be activated until all stop-pair prices are set.
+                {t('operations.incompletePricesHint')}
               </Typography>
             </View>
             <Icon name="chevron-right" size={16} color="#F59E0B" />

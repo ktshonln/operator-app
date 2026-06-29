@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
@@ -31,6 +32,7 @@ interface OrgOption {
 }
 
 export const BankAccountsScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const routeOrgId: string | undefined = route.params?.orgId;
@@ -79,18 +81,18 @@ export const BankAccountsScreen: React.FC = () => {
       setAccounts(data);
     } catch (error: any) {
       console.error('Failed to fetch bank accounts:', error);
-      const errorMessage = error.message || 'Unable to load bank accounts';
+      const errorMessage = error.message || t('banks.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
       Alert.alert(
-        'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        t('common.error'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
       );
       setAccounts([]);
     } finally {
       if (showFullLoader) setLoading(false);
       setRefreshing(false);
     }
-  }, [effectiveOrgId, isPlatformAdmin]);
+  }, [effectiveOrgId, isPlatformAdmin, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -110,20 +112,20 @@ export const BankAccountsScreen: React.FC = () => {
 
   const handleDelete = (account: OrgBankAccount) => {
     Alert.alert(
-      'Delete bank account',
-      `Remove ${account.bank?.name ?? 'this account'} (${maskAccountNumber(account.account_number)})?`,
+      t('banks.deleteTitle'),
+      t('banks.deleteConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteOrgBankAccount(account.id, effectiveOrgId);
               setAccounts(prev => prev.filter(a => a.id !== account.id));
-              Alert.alert('Deleted', 'Bank account removed.');
+              Alert.alert(t('ticketing.deleted'), t('banks.deleted'));
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete bank account');
+              Alert.alert(t('common.error'), error.message || t('banks.deleteFailed'));
             }
           },
         },
@@ -144,7 +146,7 @@ export const BankAccountsScreen: React.FC = () => {
             </Typography>
             {item.is_default && (
               <View style={styles.primaryBadge}>
-                <Typography variant="caption" style={{ color: COLORS.brand, fontWeight: '700' }}>Primary</Typography>
+                <Typography variant="caption" style={{ color: COLORS.brand, fontWeight: '700' }}>{t('banks.default')}</Typography>
               </View>
             )}
           </View>
@@ -169,7 +171,7 @@ export const BankAccountsScreen: React.FC = () => {
   if (permissionsLoading || loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header title="Bank Accounts" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <Header title={t('banks.title')} showBack onBack={() => navigation.goBack()} rightElement={<View />} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={COLORS.brand} />
         </View>
@@ -180,13 +182,13 @@ export const BankAccountsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Bank Accounts"
+        title={t('banks.title')}
         showBack
         onBack={() => navigation.goBack()}
         rightIcon="add"
         onRightPress={() => {
           if (isPlatformAdmin && !effectiveOrgId) {
-            Alert.alert('Select organization', 'Choose an organization before adding a bank account.');
+            Alert.alert(t('banks.selectOrgAlert'), t('banks.selectOrgFirst'));
             return;
           }
           navigation.navigate('AddBankAccount', { orgId: effectiveOrgId });
@@ -225,8 +227,8 @@ export const BankAccountsScreen: React.FC = () => {
             <Icon name="business" size={40} color={COLORS.textMuted} />
             <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12, textAlign: 'center' }}>
               {isPlatformAdmin && !effectiveOrgId
-                ? 'Select an organization to view bank accounts.'
-                : 'No bank accounts yet. Add one for payouts.'}
+                ? t('banks.selectOrgHint')
+                : t('banks.emptyAddHint')}
             </Typography>
           </View>
         }

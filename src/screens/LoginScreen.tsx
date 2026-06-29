@@ -24,6 +24,7 @@ import { Icon } from '../components/Icon';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert } from 'react-native';
+import { changeAppLanguage } from '../i18n';
 
 const { width } = Dimensions.get('window');
 const LOGO = require('../assets/images/new.png');
@@ -70,7 +71,7 @@ export const LoginScreen: React.FC = () => {
           styles.langBtn,
           isActive && styles.langBtnActive
         ]}
-        onPress={() => i18n.changeLanguage(lang.code)}
+        onPress={() => void changeAppLanguage(lang.code)}
       >
         <Typography 
           variant="caption" 

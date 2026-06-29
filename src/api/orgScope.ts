@@ -20,3 +20,17 @@ export const orgMeUrl = (
 
 export const withOrgIdBody = <T extends Record<string, unknown>>(data: T, orgId?: string) =>
   orgId ? { ...data, org_id: orgId } : data;
+
+/** Platform admins scope org-scoped POST/PATCH via query (body org_id is rejected on /trips) */
+export const withOrgIdQuery = (path: string, orgId?: string): string => {
+  if (!orgId) return path;
+  const [pathname, search = ''] = path.split('?');
+  const params = new URLSearchParams(search);
+  params.set('org_id', orgId);
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+};
+
+/** @deprecated Gateway strips client X-Org-ID — use withOrgIdQuery for trip mutations */
+export const withOrgIdHeader = (orgId?: string): Record<string, string> =>
+  orgId ? { 'X-Org-ID': orgId } : {};

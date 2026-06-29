@@ -10,7 +10,12 @@ import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { Trip, Route, Bus } from '../mock/transportData';
-import { getTrips, createTripSeries, getRoutes, getBuses } from '../api';
+import { getTrips, createTripSeries, getRoutes, getBuses, getAllOrganizations, getRouteById } from '../api';
+import { getMyOrganization } from '../api/client';
+import { usePermissions } from '../hooks/usePermissions';
+import { useOrganization } from '../hooks/useOrganization';
+
+interface OrgOption { id: string; name: string; }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 5); // 05:00 – 22:00
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -46,6 +51,11 @@ function formatDateParam(date: Date) {
 
 export const TripCalendarScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { isPlatformAdmin, getUserOrgScope, loading: permissionsLoading, user: permissionUser } = usePermissions();
+  const { organization } = useOrganization();
+
+  const [organizations, setOrganizations] = useState<OrgOption[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState<OrgOption | null>(null);
   const [weekBase, setWeekBase] = useState(new Date());
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [showRoutePicker, setShowRoutePicker] = useState(false);
@@ -67,15 +77,42 @@ export const TripCalendarScreen: React.FC = () => {
 
   const weekDates = useMemo(() => getWeekDates(weekBase), [weekBase]);
 
+  const effectiveOrgId = isPlatformAdmin
+    ? selectedOrg?.id
+    : (getUserOrgScope ?? organization?.id ?? undefined);
+
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      const orgsData = await getAllOrganizations();
+      const list = (Array.isArray(orgsData) ? orgsData : [])
+        .filter((org: any) => org.id && org.name)
+        .map((org: any) => ({ id: org.id, name: org.name }));
+      setOrganizations(list);
+    } catch (error) {
+      console.error('Failed to fetch organizations:', error);
+    }
+  }, []);
+
   const fetchRoutesAndBuses = useCallback(async () => {
     try {
-      const [routesData, busesData] = await Promise.all([getRoutes(), getBuses()]);
-      setRoutes(routesData);
+      const busParams = isPlatformAdmin && effectiveOrgId ? { org_id: effectiveOrgId } : undefined;
+      const [routesData, busesData] = await Promise.all([getRoutes(), getBuses(busParams)]);
+      const scopedRoutes = isPlatformAdmin && effectiveOrgId
+        ? routesData.filter((r: Route) => !r.org?.id || r.org.id === effectiveOrgId)
+        : routesData;
+      setRoutes(scopedRoutes);
       setBuses(busesData);
     } catch (error) {
       console.error('Failed to fetch routes/buses:', error);
     }
-  }, []);
+  }, [effectiveOrgId, isPlatformAdmin]);
+
+  useEffect(() => {
+    if (!effectiveOrgId || !selectedRoute?.org?.id) return;
+    if (selectedRoute.org.id !== effectiveOrgId) {
+      setSelectedRoute(null);
+    }
+  }, [effectiveOrgId, selectedRoute]);
 
   const fetchTrips = useCallback(async () => {
     try {
@@ -89,6 +126,7 @@ export const TripCalendarScreen: React.FC = () => {
         route_id: selectedRoute?.id,
         from: fromDate.toISOString(),
         to: toDate.toISOString(),
+        ...(isPlatformAdmin && effectiveOrgId ? { org_id: effectiveOrgId } : {}),
       });
       setTrips(data);
     } catch (error: any) {
@@ -98,11 +136,17 @@ export const TripCalendarScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [weekDates, selectedRoute?.id]);
+  }, [weekDates, selectedRoute?.id, effectiveOrgId, isPlatformAdmin]);
 
   useEffect(() => {
+    if (permissionsLoading) return;
+    if (isPlatformAdmin) fetchOrganizations();
+  }, [permissionsLoading, isPlatformAdmin, fetchOrganizations]);
+
+  useEffect(() => {
+    if (permissionsLoading) return;
     fetchRoutesAndBuses();
-  }, [fetchRoutesAndBuses]);
+  }, [permissionsLoading, fetchRoutesAndBuses]);
 
   useEffect(() => {
     fetchTrips();
@@ -143,17 +187,101 @@ export const TripCalendarScreen: React.FC = () => {
   const handleCreate = async () => {
     if (!createSlot || !selectedRoute) return;
 
+    const tripOrgId = isPlatformAdmin
+      ? (effectiveOrgId ?? selectedRoute.org?.id)
+      : undefined;
+
+    if (isPlatformAdmin && !tripOrgId) {
+      Alert.alert(
+        'Select organization',
+        'Platform admins must select an organization (or a route that belongs to one) before creating trips.',
+      );
+      return;
+    }
+
+    if (!selectedBus) {
+      const seats = parseInt(newSeats, 10);
+      if (!seats || seats <= 0) {
+        Alert.alert('Validation', 'Select a bus or enter total seats for this trip.');
+        return;
+      }
+    }
+
+    const userOrgId = getUserOrgScope ?? permissionUser?.org_id ?? organization?.id;
+
     setCreating(true);
     try {
-      const result = await createTripSeries({
-        route_id: selectedRoute.id,
-        bus_id: selectedBus?.id,
-        total_seats: selectedBus ? undefined : parseInt(newSeats, 10) || undefined,
-        is_express: newExpress,
-        departure_time: `${newHour.padStart(2, '0')}:${newMin.padStart(2, '0')}`,
-        starts_on: formatDateParam(createSlot.date),
-        repeat_daily: false,
-      });
+      if (!isPlatformAdmin && userOrgId) {
+        try {
+          const orgProfile = await getMyOrganization();
+          if (orgProfile.id !== userOrgId) {
+            console.warn('Trip create: org_id mismatch', { jwt: userOrgId, profile: orgProfile.id });
+          }
+          if (orgProfile.status && !['active', 'approved'].includes(orgProfile.status)) {
+            Alert.alert(
+              'Organization not active',
+              `Your organization status is "${orgProfile.status}". Trips cannot be created until it is active.`,
+            );
+            return;
+          }
+        } catch (orgErr: any) {
+          if (orgErr?.data?.error?.code === 'ORG_NOT_FOUND') {
+            Alert.alert(
+              'Organization not found',
+              'Your account references an organization that could not be loaded. Contact Katisha support.',
+            );
+            return;
+          }
+          throw orgErr;
+        }
+      }
+
+      const routeDetail = await getRouteById(selectedRoute.id);
+      if (__DEV__) {
+        console.log('Trip create route preflight:', {
+          route_id: routeDetail.id,
+          route_name: routeDetail.name,
+          route_status: routeDetail.status,
+          route_org_id: routeDetail.org?.id ?? null,
+          user_org_id: userOrgId ?? null,
+        });
+      }
+      if (!isPlatformAdmin && userOrgId && !routeDetail.org?.id) {
+        Alert.alert(
+          'Route not linked to organization',
+          'This route has no organization assigned in trip-service. Recreate the route as your org admin, or ask Katisha support to link it to your org.',
+        );
+        return;
+      }
+      if (userOrgId && routeDetail.org?.id && routeDetail.org.id !== userOrgId) {
+        Alert.alert(
+          'Route mismatch',
+          'This route belongs to a different organization. Select a route from your own org.',
+        );
+        return;
+      }
+      if (routeDetail.status !== 'active') {
+        Alert.alert(
+          'Route not active',
+          'Activate this route and set all fares before creating trips.',
+        );
+        return;
+      }
+
+      const result = await createTripSeries(
+        {
+          route_id: selectedRoute.id,
+          bus_id: selectedBus?.id,
+          total_seats: selectedBus ? undefined : parseInt(newSeats, 10) || undefined,
+          is_express: newExpress,
+          departure_time: `${newHour.padStart(2, '0')}:${newMin.padStart(2, '0')}`,
+          starts_on: formatDateParam(createSlot.date),
+          repeat_daily: false,
+        },
+        {
+          orgId: tripOrgId,
+        },
+      );
 
       if (result.trips.length > 0) {
         setTrips(prev => [...prev, ...result.trips]);
@@ -166,9 +294,21 @@ export const TripCalendarScreen: React.FC = () => {
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to create trip';
       const errorDetails = error.data?.error?.code || '';
+      const orgHint = errorDetails === 'ORG_NOT_FOUND'
+        ? `\n\nTrip-service could not resolve your organization${userOrgId ? ` (${userOrgId})` : ''}. Your org may exist in user-service but not yet be synced to trip-service — contact Katisha support.`
+        : errorDetails === 'ROUTE_NOT_FOUND'
+          ? '\n\nThe selected route was not found in your organization.'
+          : errorDetails === 'TOTAL_SEATS_REQUIRED'
+            ? '\n\nEnter total seats or assign a bus.'
+            : '';
+      const platformHint = isPlatformAdmin && errorDetails === 'ORG_REQUIRED'
+        ? '\n\nTip: Select an organization chip above, then try again.'
+        : '';
       Alert.alert(
         'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        errorDetails
+          ? `${errorMessage}\n\nError: ${errorDetails}${orgHint}${platformHint}`
+          : `${errorMessage}${orgHint}${platformHint}`,
       );
     } finally {
       setCreating(false);
@@ -181,6 +321,33 @@ export const TripCalendarScreen: React.FC = () => {
         title="Trip Calendar" 
         rightElement={<View />}
       />
+
+      {isPlatformAdmin && (
+        <View style={styles.orgSection}>
+          <Typography variant="caption" style={styles.orgLabel}>ORGANIZATION</Typography>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orgRow}>
+            {organizations.map(org => (
+              <TouchableOpacity
+                key={org.id}
+                style={[styles.orgChip, selectedOrg?.id === org.id && styles.orgChipActive]}
+                onPress={() => setSelectedOrg(org)}
+              >
+                <Typography
+                  variant="caption"
+                  style={{ fontWeight: '700', color: selectedOrg?.id === org.id ? COLORS.white : COLORS.textSecondary }}
+                >
+                  {org.name}
+                </Typography>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {!selectedOrg && (
+            <Typography variant="caption" color={COLORS.textMuted} style={{ marginTop: 6 }}>
+              Select an organization to create trips.
+            </Typography>
+          )}
+        </View>
+      )}
 
       {/* Route selector */}
       <TouchableOpacity style={styles.routeSelector} onPress={() => setShowRoutePicker(!showRoutePicker)}>
@@ -197,7 +364,14 @@ export const TripCalendarScreen: React.FC = () => {
             <Typography variant="body" color={COLORS.textSecondary}>All routes</Typography>
           </TouchableOpacity>
           {routes.map(r => (
-            <TouchableOpacity key={r.id} style={styles.routeOption} onPress={() => { setSelectedRoute(r); setShowRoutePicker(false); }}>
+            <TouchableOpacity key={r.id} style={styles.routeOption} onPress={() => {
+              setSelectedRoute(r);
+              if (isPlatformAdmin && r.org?.id) {
+                const match = organizations.find(o => o.id === r.org!.id);
+                setSelectedOrg(match ?? { id: r.org.id, name: r.org.name });
+              }
+              setShowRoutePicker(false);
+            }}>
               <View style={[styles.routeDot, { backgroundColor: STATUS_COLORS.scheduled }]} />
               <Typography variant="body">{r.name}</Typography>
             </TouchableOpacity>
@@ -359,6 +533,14 @@ export const TripCalendarScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  orgSection: { marginHorizontal: 12, marginTop: 8, marginBottom: 4 },
+  orgLabel: { fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6, fontSize: 11 },
+  orgRow: { gap: 8 },
+  orgChip: {
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
+  },
+  orgChipActive: { backgroundColor: COLORS.brand, borderColor: COLORS.brand },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   pickerBtn: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background,

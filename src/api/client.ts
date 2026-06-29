@@ -2,6 +2,7 @@ import { API_CONFIG } from './config';
 import { authStore } from './authStore';
 import { Organization } from '../types/organization';
 import { Role, CreateRoleRequest, UpdateRoleRequest, Permission } from '../types/role';
+import { isDriverRoleSlug } from '../utils/roles';
 import { Platform } from 'react-native';
 
 
@@ -17,6 +18,33 @@ interface RequestOptions {
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+// Bumped on login/logout so stale in-flight 401s cannot clear a newer session
+let authEpoch = 0;
+let authLoginGraceUntil = 0;
+
+/** Call on login/logout — invalidates pending refresh/retry and queued requests */
+export const resetAuthClientState = () => {
+  authEpoch += 1;
+  authLoginGraceUntil = 0;
+  isRefreshing = false;
+  refreshPromise = null;
+  const aborted = { status: 401, message: 'Auth state changed', isAborted: true };
+  processQueue(aborted, null);
+};
+
+/** Ignore session-revoked clears briefly after login (Katisha session propagation) */
+export const beginLoginGrace = (ms = 5000) => {
+  authLoginGraceUntil = Date.now() + ms;
+};
+
+const clearAuthIfCurrent = async (requestEpoch: number): Promise<boolean> => {
+  if (requestEpoch !== authEpoch) {
+    console.log('Skipping auth clear — superseded by a newer login');
+    return false;
+  }
+  await authStore.clearAll();
+  return true;
+};
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
@@ -30,8 +58,31 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
+const isSessionRevokedError = (data: any): boolean => {
+  const code = data?.error?.code ?? '';
+  const message = (data?.error?.message ?? '').toLowerCase();
+  return code === 'SESSION_REVOKED' || message.includes('session revoked');
+};
+
+const buildUnauthorizedError = (data: any, status: number) => {
+  const revoked = isSessionRevokedError(data);
+  return {
+    status,
+    message: revoked
+      ? 'Your session was ended by the server. Please log in again.'
+      : 'Your session has expired. Please login again.',
+    data,
+    isTokenExpired: true,
+    isSessionRevoked: revoked,
+  };
+};
+
+const unwrapTokenPayload = (payload: any) =>
+  payload?.data && !payload?.access_token ? payload.data : payload;
+
 export const apiClient = async (endpoint: string, options: RequestOptions = {}, isRetry = false) => {
   const { method = 'GET', headers = {}, body } = options;
+  const requestEpoch = authEpoch;
 
   const url = `${API_CONFIG.BASE_URL}${endpoint}`;
   const token = await authStore.getToken();
@@ -83,75 +134,77 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
       // Handle token expiration with automatic refresh
       // Skip refresh logic for auth endpoints — they don't use tokens
       const isAuthEndpoint = endpoint.startsWith('/auth/');
-      if (response.status === 401 && !isRetry && !isAuthEndpoint) {
-        console.log('Token expired, attempting refresh...');
-        
-        if (isRefreshing) {
-          // If already refreshing, queue this request
-          return new Promise((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
-          }).then(() => {
-            // Retry with new token
-            return apiClient(endpoint, options, true);
-          }).catch((err) => {
-            throw err;
-          });
-        }
 
-        isRefreshing = true;
-        refreshPromise = refreshAccessToken();
-
-        try {
-          const refreshResponse = await refreshPromise;
-          
-          if (refreshResponse && refreshResponse.access_token) {
-            await authStore.saveToken(refreshResponse.access_token);
-            
-            // If new refresh token is provided, save it
-            if (refreshResponse.refresh_token) {
-              await authStore.saveRefreshToken(refreshResponse.refresh_token);
-            }
-            
-            console.log('Token refreshed successfully');
-            processQueue(null, refreshResponse.access_token);
-            
-            // Retry the original request with the new token
-            return apiClient(endpoint, options, true);
-          } else {
-            throw new Error('No access token in refresh response');
-          }
-        } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
-          
-          // Clear all tokens and redirect to login
-          await authStore.clearAll();
-          
-          const error = {
-            status: 401,
-            message: 'Your session has expired. Please login again.',
-            data,
-            isTokenExpired: true,
-          };
-          
-          processQueue(error, null);
-          throw error;
-        } finally {
-          isRefreshing = false;
-          refreshPromise = null;
-        }
-      }
-      
-      // Handle other 401 errors or if refresh failed (never for auth endpoints — they use credentials not tokens)
       if (response.status === 401 && !isAuthEndpoint) {
+        const missingAuthHeader =
+          !token ||
+          (data?.error?.message ?? '').toLowerCase().includes('missing authorization');
+
+        // No token sent — already logged out; don't refresh or wipe a newer login
+        if (missingAuthHeader) {
+          throw buildUnauthorizedError(data, response.status);
+        }
+
+        // Session revoked — refresh cannot recover
+        if (isSessionRevokedError(data)) {
+          const inLoginGrace = Date.now() < authLoginGraceUntil;
+          if (inLoginGrace) {
+            console.warn('Session revoked during login grace — keeping tokens');
+          } else {
+            console.log('Session revoked, clearing tokens');
+            await clearAuthIfCurrent(requestEpoch);
+          }
+          throw buildUnauthorizedError(data, response.status);
+        }
+
+        if (!isRetry) {
+          console.log('Token expired, attempting refresh...');
+
+          if (isRefreshing) {
+            return new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject });
+            }).then(() => apiClient(endpoint, options, true)).catch((err) => {
+              throw err;
+            });
+          }
+
+          isRefreshing = true;
+          refreshPromise = refreshAccessToken(requestEpoch);
+
+          try {
+            const refreshResponse = unwrapTokenPayload(await refreshPromise);
+
+            if (refreshResponse?.access_token) {
+              await authStore.saveToken(refreshResponse.access_token);
+
+              if (refreshResponse.refresh_token) {
+                await authStore.saveRefreshToken(refreshResponse.refresh_token);
+              }
+
+              console.log('Token refreshed successfully');
+              processQueue(null, refreshResponse.access_token);
+
+              return apiClient(endpoint, options, true);
+            }
+
+            throw new Error('No access token in refresh response');
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+
+            await clearAuthIfCurrent(requestEpoch);
+
+            const error = buildUnauthorizedError(data, 401);
+            processQueue(error, null);
+            throw error;
+          } finally {
+            isRefreshing = false;
+            refreshPromise = null;
+          }
+        }
+
         console.log('Unauthorized request, clearing tokens');
-        await authStore.clearAll();
-        
-        throw {
-          status: response.status,
-          message: 'Your session has expired. Please login again.',
-          data,
-          isTokenExpired: true,
-        };
+        await clearAuthIfCurrent(requestEpoch);
+        throw buildUnauthorizedError(data, response.status);
       }
       
       // Extract error message — always prefer backend message over frontend fallbacks
@@ -199,7 +252,7 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
         status: response.status,
         message: errorMessage,
         data,
-        isTokenExpired: !!(data?.error?.code === 'UNAUTHORIZED' || data?.error?.code === 'MISSING_REFRESH_TOKEN'),
+        isTokenExpired: false,
       };
     }
 
@@ -231,10 +284,25 @@ export const apiClient = async (endpoint: string, options: RequestOptions = {}, 
 };
 
 // Organization API functions
+const normalizeOrganization = (raw: any): Organization => {
+  const data = raw?.data ?? raw?.organization ?? raw;
+  return data as Organization;
+};
+
+/** GET /organizations/me — user-service; org_id comes from JWT (no query param for org admins). */
 export const getMyOrganization = async (): Promise<Organization> => {
-  return apiClient('/organizations/me', {
+  const response = await apiClient('/organizations/me', {
     method: 'GET',
   });
+  const org = normalizeOrganization(response);
+  if (__DEV__ && org?.id) {
+    console.log('getMyOrganization OK:', {
+      id: org.id,
+      name: org.name,
+      status: org.status,
+    });
+  }
+  return org;
 };
 
 export const getAllOrganizations = async () => {
@@ -457,12 +525,12 @@ export const requestPostLogin2FA = async (userIdOrIdentifier: string, channel?: 
 };
 
 // Token refresh API
-export const refreshAccessToken = async () => {
+export const refreshAccessToken = async (requestEpoch?: number) => {
+  const epoch = requestEpoch ?? authEpoch;
   const refreshToken = await authStore.getRefreshToken();
-  
+
   if (!refreshToken) {
-    console.warn('No refresh token available, clearing auth store');
-    await authStore.clearAll();
+    console.warn('No refresh token available');
     throw new Error('No refresh token available');
   }
 
@@ -474,7 +542,6 @@ export const refreshAccessToken = async () => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'X-Client-Type': 'mobile',
-        // API requires refresh token as Bearer token in Authorization header
         'Authorization': `Bearer ${refreshToken}`,
         ...API_CONFIG.DEFAULT_HEADERS,
       },
@@ -489,7 +556,7 @@ export const refreshAccessToken = async () => {
     }
 
     if (!response.ok) {
-      await authStore.clearAll();
+      if (epoch === authEpoch) await authStore.clearAll();
       throw {
         status: response.status,
         message: data?.error?.message || 'Session expired. Please log in again.',
@@ -498,9 +565,10 @@ export const refreshAccessToken = async () => {
       };
     }
 
-    return data;
+    return unwrapTokenPayload(data);
   } catch (error: any) {
-    await authStore.clearAll();
+    if (error?.isTokenExpired) throw error;
+    if (epoch === authEpoch) await authStore.clearAll();
     throw error;
   }
 };
@@ -756,26 +824,185 @@ export const getUsers = async (params?: {
   };
 };
 
+export interface DriverOption {
+  id: string;
+  userId?: string;
+  name: string;
+  email?: string;
+  licenseNumber?: string;
+  /** Has role slug driver but user_type is not staff — cannot assign to bus. */
+  pendingActivation?: boolean;
+  userType?: string;
+  roleSlugs?: string[];
+}
+
+const mapDriverUsers = (users: any[], pendingActivation = false): DriverOption[] =>
+  users
+    .filter(user => user?.id && user.status !== 'inactive')
+    .map(user => ({
+      id: user.id,
+      name: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'driver',
+      email: user.email,
+      licenseNumber: user.driver_license_number ?? undefined,
+      pendingActivation,
+      userType: user.user_type,
+      roleSlugs: user.roles,
+    }));
+
+/** Katisha user_type is passenger or staff. Bus drivers are staff with role slug driver. */
+const isStaffUser = (user: any): boolean =>
+  String(user?.user_type ?? '').toLowerCase() === 'staff';
+
+const userHasDriverRole = (user: any, driverSlugs: Set<string>): boolean => {
+  const roles: string[] = user.roles ?? [];
+  return roles.some((slug: string) => driverSlugs.has(slug));
+};
+
+const isBusAssignableDriver = (user: any, driverSlugs: Set<string>): boolean =>
+  Boolean(user?.id) &&
+  user.status !== 'inactive' &&
+  isStaffUser(user) &&
+  userHasDriverRole(user, driverSlugs);
+
+const fetchStaffOrgUsers = async (orgId: string): Promise<any[]> => {
+  const matched: any[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await getUsers({ org_id: orgId, user_type: 'staff', page, limit: 100 });
+    const batch = response.data ?? [];
+    matched.push(...batch);
+    totalPages = response.totalPages ?? 1;
+    page += 1;
+  } while (page <= totalPages);
+
+  return matched;
+};
+
+const fetchAllOrgUsers = async (orgId: string): Promise<any[]> => {
+  const allUsers: any[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await getUsers({ org_id: orgId, page, limit: 100 });
+    allUsers.push(...(response.data ?? []));
+    totalPages = response.totalPages ?? 1;
+    page += 1;
+  } while (page <= totalPages);
+
+  return allUsers;
+};
+
+const getDriverRoleSlugs = async (orgId: string): Promise<Set<string>> => {
+  const slugs = new Set<string>(['driver']);
+  try {
+    const roles = await getRoles(orgId);
+    for (const role of roles) {
+      if (role.slug && isDriverRoleSlug(role.slug)) {
+        slugs.add(role.slug);
+      }
+    }
+  } catch (error) {
+    console.warn('getDrivers: could not load org roles', error);
+  }
+  return slugs;
+};
+
+/** Staff users with role slug driver — valid driver_id candidates for buses. */
+export const getDriverRoleUsers = async (orgId: string): Promise<DriverOption[]> => {
+  const driverSlugs = await getDriverRoleSlugs(orgId);
+
+  let candidates: any[] = [];
+  try {
+    candidates = await fetchStaffOrgUsers(orgId);
+  } catch (error) {
+    console.warn('getDrivers: user_type=staff query failed', error);
+    candidates = await fetchAllOrgUsers(orgId);
+  }
+
+  const enrichedUsers = await Promise.all(
+    candidates.map(async user => {
+      try {
+        return await getUserById(user.id);
+      } catch {
+        return user;
+      }
+    }),
+  );
+
+  const assignable = enrichedUsers.filter(user => isBusAssignableDriver(user, driverSlugs));
+  console.log(
+    `getDrivers: org=${orgId} assignable=${assignable.length}`,
+    assignable.map(u => ({ id: u.id, user_type: u.user_type, roles: u.roles })),
+  );
+  return mapDriverUsers(assignable, false);
+};
+
+/** Role slug driver but user_type is not staff (e.g. still passenger). */
+export const getPendingDrivers = async (orgId: string): Promise<DriverOption[]> => {
+  const driverSlugs = await getDriverRoleSlugs(orgId);
+  const allUsers = await fetchAllOrgUsers(orgId);
+
+  const enrichedUsers = await Promise.all(
+    allUsers.map(async user => {
+      try {
+        return await getUserById(user.id);
+      } catch {
+        return user;
+      }
+    }),
+  );
+
+  const pending = enrichedUsers.filter(
+    user => userHasDriverRole(user, driverSlugs) && !isBusAssignableDriver(user, driverSlugs),
+  );
+
+  if (pending.length > 0) {
+    console.warn(
+      'getDrivers: users have role slug driver but are not staff:',
+      pending.map(u => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, user_type: u.user_type, roles: u.roles })),
+    );
+  }
+
+  return mapDriverUsers(pending, true);
+};
+
+/** Org users assignable as bus driver_id. */
+export const getDrivers = async (orgId: string): Promise<DriverOption[]> => {
+  return getDriverRoleUsers(orgId);
+};
+
 export const getUserById = async (userId: string) => {
   return apiClient(`/users/${userId}`, {
     method: 'GET',
   });
 };
 
-// Invite user instead of direct creation
+// Invite user instead of direct creation — API only accepts these fields (no user_type).
 export const inviteUser = async (userData: {
   first_name: string;
   last_name: string;
   org_id: string;
-  role_slugs: string[];  // API requires array
+  role_slugs: string[];
   email?: string;
   phone_number?: string;
 }) => {
-  console.log('inviteUser - sending payload:', JSON.stringify(userData, null, 2));
+  const payload: Record<string, unknown> = {
+    first_name: userData.first_name,
+    last_name: userData.last_name,
+    org_id: userData.org_id,
+    role_slugs: userData.role_slugs,
+  };
+  if (userData.email) payload.email = userData.email;
+  if (userData.phone_number) payload.phone_number = userData.phone_number;
+
+  console.log('inviteUser - sending payload:', JSON.stringify(payload, null, 2));
   try {
     return await apiClient('/users/invite', {
       method: 'POST',
-      body: userData,
+      body: payload,
     });
   } catch (error: any) {
     if (error?.data?.error?.details) {
@@ -802,13 +1029,64 @@ export const createUser = async (userData: {
 export const updateUser = async (userId: string, userData: {
   first_name?: string;
   last_name?: string;
-  email?: string;
   phone_number?: string;
-  role_id?: string;
+  driver_license_number?: string;
 }) => {
   return apiClient(`/users/${userId}`, {
     method: 'PATCH',
     body: userData,
+  });
+};
+
+/** Replace or assign roles — profile PATCH does not accept role fields. */
+export const getUserRoles = async (userId: string) => {
+  return apiClient(`/users/${userId}/roles`, { method: 'GET' });
+};
+
+const normalizeAssignedRoles = (response: any): Array<{ id?: string; slug?: string }> => {
+  if (!response) return [];
+  const raw = Array.isArray(response) ? response : response.data ?? response.roles ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((role: any) => ({
+    id: role.id ?? role.role_id,
+    slug: role.slug ?? role.role_slug,
+  }));
+};
+
+const removeUserRole = async (
+  userId: string,
+  role: { id?: string; slug?: string },
+) => {
+  const attempts: Array<{ method: HttpMethod; endpoint?: string; body?: Record<string, unknown> }> = [
+    ...(role.id ? [{ method: 'DELETE' as const, endpoint: `/users/${userId}/roles/${role.id}` }] : []),
+    ...(role.id ? [{ method: 'DELETE' as const, body: { role_id: role.id } }] : []),
+    ...(role.slug ? [{ method: 'DELETE' as const, body: { role_slug: role.slug } }] : []),
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await apiClient(attempt.endpoint ?? `/users/${userId}/roles`, {
+        method: attempt.method,
+        body: attempt.body,
+      });
+      return;
+    } catch {
+      // try next shape
+    }
+  }
+};
+
+export const updateUserRoles = async (
+  userId: string,
+  params: { roleId: string; roleSlug: string },
+) => {
+  const { roleSlug } = params;
+
+  console.log(`updateUserRoles: PUT /users/${userId}/roles`, { role_slugs: [roleSlug] });
+  return apiClient(`/users/${userId}/roles`, {
+    method: 'PUT',
+    body: { role_slugs: [roleSlug] },
   });
 };
 

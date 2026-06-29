@@ -17,10 +17,12 @@ import { MapLocationPicker } from '../components/MapLocationPicker';
 import { COLORS } from '../theme/colors';
 import { Location } from '../mock/transportData';
 import { updateLocation } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
 
 export const LocationDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { canManageLocations } = usePermissions();
   const loc: Location = route.params?.location;
 
   const [name, setName] = useState(loc.name);
@@ -153,8 +155,13 @@ export const LocationDetailScreen: React.FC = () => {
         title={loc.name}
         showBack
         onBack={() => navigation.goBack()}
-        rightIcon={editing ? 'check' : 'edit'}
-        onRightPress={() => (editing ? handleSave() : setEditing(true))}
+        rightIcon={canManageLocations ? (editing ? 'check' : 'edit') : undefined}
+        onRightPress={
+          canManageLocations
+            ? () => (editing ? handleSave() : setEditing(true))
+            : undefined
+        }
+        rightElement={canManageLocations ? undefined : <View />}
       />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Interactive Map */}

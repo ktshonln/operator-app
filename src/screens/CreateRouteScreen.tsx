@@ -73,34 +73,49 @@ export const CreateRouteScreen: React.FC = () => {
 
   const autoName = stops.length >= 2 ? `${stops[0].location.name} — ${stops[stops.length - 1].location.name}` : '';
 
+  const formatRouteError = (error: any) => {
+    const code = error.data?.error?.code ?? '';
+    const base = error.message || 'Failed to create route';
+    switch (code) {
+      case 'STOP_NOT_FOUND':
+        return `${base}\n\nOne or more stops no longer exist. Refresh locations and pick stops again.`;
+      case 'ROUTE_ALREADY_EXISTS':
+        return `${base}\n\nA route with this name already exists. Use a different name or leave the name blank.`;
+      case 'INSUFFICIENT_STOPS':
+        return `${base}\n\nAdd at least 2 stops.`;
+      case 'FORBIDDEN':
+        return `${base}\n\nYour account cannot create routes. Org admins should have route:create — contact Katisha support.`;
+      case 'INTERNAL_SERVER_ERROR':
+        return `${base}\n\nServer error (500). Your payload matches the API spec — this is likely a Katisha backend issue. Try leaving the route name blank, or contact support with the stop IDs you selected.`;
+      default:
+        return code ? `${base}\n\nError: ${code}` : base;
+    }
+  };
+
   const handleCreate = async () => {
     if (stops.length < 2) {
       Alert.alert('Validation', 'A route needs at least 2 stops.');
       return;
     }
 
-    const routeName = name.trim() || autoName;
+    const routeName = name.trim() || undefined;
 
     setLoading(true);
     try {
       await createRoute({
-        name: routeName,
+        ...(routeName ? { name: routeName } : {}),
         stops: stops.map(s => ({
           location_id: s.location.id,
           order: s.order,
         })),
       });
 
-      Alert.alert('Success', `Route "${routeName}" created.`, [
+      const displayName = routeName || autoName || 'Route';
+      Alert.alert('Success', `Route "${displayName}" created (inactive until fares are set).`, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to create route';
-      const errorDetails = error.data?.error?.code || '';
-      Alert.alert(
-        'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
-      );
+      Alert.alert('Error', formatRouteError(error));
     } finally {
       setLoading(false);
     }
@@ -171,7 +186,7 @@ export const CreateRouteScreen: React.FC = () => {
             <View style={styles.infoBox}>
               <Icon name="info" size={16} color={COLORS.brand} />
               <Typography variant="caption" color={COLORS.textSecondary} style={{ marginLeft: 8, flex: 1 }}>
-                Route cannot be activated until all stop-pair prices are defined.
+                Route is created inactive. Set all stop-pair fares on the route detail screen, then activate.
               </Typography>
             </View>
           )}

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Typography } from '../components/Typography';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
-import { apiClient } from '../api/client';
+import { apiClient, getRolesWithGrants } from '../api/client';
 import { authStore } from '../api/authStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { User } from '../types/user';
+import { Role } from '../types/role';
+import { resolveRoleNames } from '../utils/roles';
 
 interface UsersResponse {
   data: User[];
@@ -35,6 +37,7 @@ export const UsersListScreen = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [orgRoles, setOrgRoles] = useState<Role[]>([]);
   
   const ITEMS_PER_PAGE = 20;
 
@@ -163,10 +166,29 @@ export const UsersListScreen = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, fetchUsers]);
 
-  // Initial load
+  useFocusEffect(
+    useCallback(() => {
+      fetchUsers(1, false, searchQuery);
+    }, [fetchUsers, searchQuery]),
+  );
+
   useEffect(() => {
-    fetchUsers(1, false);
-  }, []);
+    const loadRoles = async () => {
+      try {
+        let orgId: string | undefined;
+        if (!isPlatformAdmin) {
+          const userData = await authStore.getUser();
+          orgId = getUserOrgScope ?? userData?.org_id ?? undefined;
+        }
+        if (!orgId) return;
+        const roles = await getRolesWithGrants(orgId);
+        if (Array.isArray(roles)) setOrgRoles(roles);
+      } catch (error) {
+        console.warn('UsersListScreen: failed to load role names', error);
+      }
+    };
+    if (!permissionsLoading && canManageUsers) loadRoles();
+  }, [permissionsLoading, canManageUsers, isPlatformAdmin, getUserOrgScope]);
 
   // Load more data for pagination
   const loadMoreUsers = useCallback(() => {
@@ -229,13 +251,13 @@ export const UsersListScreen = () => {
       <View style={styles.cardRight}>
         <View style={styles.roleInfo}>
           <Typography variant="caption" color={COLORS.brand} style={styles.roleBadge}>
-            {item.role?.name || item.roles?.[0] || 'No Role'}
+            {resolveRoleNames(item.roles, orgRoles)}
           </Typography>
         </View>
         <Icon name="chevron-right" size={20} color={COLORS.textSecondary} style={{ marginLeft: 8 }} />
       </View>
     </TouchableOpacity>
-  ), [navigation]);
+  ), [navigation, orgRoles]);
 
   const renderFooter = () => {
     if (!loadingMore) return null;

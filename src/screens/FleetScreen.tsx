@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TextInput,
   Alert,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -19,24 +18,23 @@ import { COLORS } from '../theme/colors';
 import { Bus } from '../mock/transportData';
 import { getBuses, deleteBus } from '../api';
 
-const STATUS_META: Record<string, { bg: string; text: string; label: string }> =
-  {
-    active: { bg: '#ECFDF5', text: '#10B981', label: 'ACTIVE' },
-    maintenance: { bg: '#FFFBEB', text: '#F59E0B', label: 'MAINTENANCE' },
-    inactive: { bg: '#F5F5F5', text: '#9E9E9E', label: 'INACTIVE' },
-  };
-
-const TYPE_ICON: Record<string, string> = {
-  Coach: '🚌',
-  Mini: '🚐',
-  Sprinter: '🚎',
-};
-
 const FILTERS = ['All', 'active', 'inactive'] as const;
 
 export const FleetScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
+
+  const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
+    active: { bg: '#ECFDF5', text: '#10B981', label: t('fleet.statusActive') },
+    maintenance: { bg: '#FFFBEB', text: '#F59E0B', label: t('fleet.statusMaintenance') },
+    inactive: { bg: '#F5F5F5', text: '#9E9E9E', label: t('fleet.statusInactive') },
+  };
+
+  const TYPE_ICON: Record<string, string> = {
+    Coach: '🚌',
+    Mini: '🚐',
+    Sprinter: '🚎',
+  };
   const [buses, setBuses] = useState<Bus[]>([]);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All');
@@ -50,17 +48,17 @@ export const FleetScreen: React.FC = () => {
       setBuses(data);
     } catch (error: any) {
       console.error('Failed to fetch buses:', error);
-      const errorMessage = error.message || 'Unable to load buses';
+      const errorMessage = error.message || t('fleet.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
       Alert.alert(
-        'Error Loading Buses',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        t('fleet.errorLoading'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
       );
       setBuses([]);
     } finally {
       if (showFullLoader) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,22 +80,22 @@ export const FleetScreen: React.FC = () => {
   });
 
   const handleDelete = (bus: Bus) => {
-    Alert.alert('Delete Bus', `Delete "${bus.plate}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('fleet.deleteBus'), t('fleet.deleteBusConfirm', { plate: bus.plate }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteBus(bus.id);
             setBuses(prev => prev.filter(b => b.id !== bus.id));
-            Alert.alert('Success', 'Bus deleted successfully');
+            Alert.alert(t('common.success'), t('fleet.busDeleted'));
           } catch (error: any) {
-            const errorMessage = error.message || 'Failed to delete bus';
+            const errorMessage = error.message || t('fleet.deleteFailed');
             const errorDetails = error.data?.error?.code || '';
             Alert.alert(
-              'Error',
-              errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+              t('common.error'),
+              errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
             );
           }
         },
@@ -132,7 +130,7 @@ export const FleetScreen: React.FC = () => {
             </View>
           </View>
           <Typography variant="caption" color={COLORS.textSecondary}>
-            {item.type} · {item.capacity} seats
+            {item.type} · {item.capacity} {t('common.seats')}
           </Typography>
           <View style={styles.driverRow}>
             {item.driver ? (
@@ -159,7 +157,7 @@ export const FleetScreen: React.FC = () => {
               </>
             ) : (
               <Typography variant="caption" color={COLORS.textMuted}>
-                No driver assigned
+                {t('fleet.noDriver')}
               </Typography>
             )}
           </View>
@@ -191,7 +189,7 @@ export const FleetScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.brand} />
           <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
-            Loading buses...
+            {t('fleet.loadingBuses')}
           </Typography>
         </View>
       </SafeAreaView>
@@ -251,12 +249,7 @@ export const FleetScreen: React.FC = () => {
       </View>
 
       {/* Filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScrollContainer}
-        contentContainerStyle={styles.filterScrollContent}
-      >
+      <View style={styles.filterRow}>
         {FILTERS.map(f => {
           const isActive = activeFilter === f;
           const count = f === 'All' ? buses.length : counts[f] || 0;
@@ -275,21 +268,16 @@ export const FleetScreen: React.FC = () => {
                 variant="body"
                 style={[
                   styles.chipText,
-                  {
-                    color: isActive ? COLORS.white : COLORS.text,
-                    fontWeight: '600',
-                  },
+                  { color: isActive ? COLORS.white : COLORS.text },
                 ]}
                 numberOfLines={1}
-                adjustsFontSizeToFit={true}
-                minimumFontScale={0.8}
               >
                 {buttonText}
               </Typography>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       <FlatList
         data={filtered}
@@ -339,50 +327,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 10,
+    marginBottom: 8,
     backgroundColor: COLORS.white,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: COLORS.text },
-  filterScrollContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 4,
-  },
-  filterScrollContent: {
-    gap: 12, // Increased gap for better spacing
-    paddingRight: 24, // More padding for last item
+  filterRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    gap: 8,
   },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    minHeight: 40,
+    minHeight: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    flexShrink: 0, // Prevent shrinking
-    // Remove fixed minWidth to allow natural sizing
   },
   chipActive: {
     backgroundColor: COLORS.brand,
     borderColor: COLORS.brand,
   },
   chipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
-    includeFontPadding: false, // Remove extra font padding on Android
-    textAlignVertical: 'center', // Center text vertically on Android
-    lineHeight: 16, // Explicit line height for better text rendering
-    flexShrink: 0, // Prevent text from shrinking
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   list: { paddingHorizontal: 16, paddingBottom: 100 },
   card: {

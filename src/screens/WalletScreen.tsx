@@ -12,6 +12,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
@@ -46,6 +47,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export const WalletScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { isPlatformAdmin, getUserOrgScope, loading: permissionsLoading } = usePermissions();
   const { organization } = useOrganization();
@@ -105,11 +107,11 @@ export const WalletScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Failed to fetch wallet:', error);
-      const errorMessage = error.message || 'Unable to load wallet';
+      const errorMessage = error.message || t('wallet.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
       Alert.alert(
-        'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        t('common.error'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
       );
       setWallet(null);
       setTransactions([]);
@@ -117,7 +119,7 @@ export const WalletScreen: React.FC = () => {
       if (showFullLoader) setLoading(false);
       setRefreshing(false);
     }
-  }, [effectiveOrgId, isPlatformAdmin, selectedBankId]);
+  }, [effectiveOrgId, isPlatformAdmin, selectedBankId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,15 +145,15 @@ export const WalletScreen: React.FC = () => {
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) {
-      Alert.alert('Validation', 'Enter a valid withdrawal amount.');
+      Alert.alert(t('common.validation'), t('wallet.validAmount'));
       return;
     }
     if (!selectedBankId) {
-      Alert.alert('Validation', 'Select a bank account for payout.');
+      Alert.alert(t('common.validation'), t('wallet.selectBank'));
       return;
     }
     if (wallet && amount > wallet.balance) {
-      Alert.alert('Validation', 'Amount exceeds available balance.');
+      Alert.alert(t('common.validation'), t('wallet.exceedsBalance'));
       return;
     }
 
@@ -163,14 +165,14 @@ export const WalletScreen: React.FC = () => {
       );
       setShowWithdraw(false);
       setWithdrawAmount('');
-      Alert.alert('Success', 'Withdrawal request submitted.');
+      Alert.alert(t('common.success'), t('wallet.withdrawalSubmitted'));
       fetchWalletData(false);
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to request withdrawal';
+      const errorMessage = error.message || t('wallet.withdrawFailed');
       const errorDetails = error.data?.error?.code || '';
       Alert.alert(
-        'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        t('common.error'),
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
       );
     } finally {
       setWithdrawing(false);
@@ -180,7 +182,7 @@ export const WalletScreen: React.FC = () => {
   if (permissionsLoading || loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header title="Wallet" showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+        <Header title={t('wallet.title')} showBack onBack={() => navigation.goBack()} rightElement={<View />} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={COLORS.brand} />
         </View>
@@ -191,7 +193,7 @@ export const WalletScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Wallet"
+        title={t('wallet.title')}
         showBack
         onBack={() => navigation.goBack()}
         rightElement={
@@ -210,7 +212,7 @@ export const WalletScreen: React.FC = () => {
       >
         {isPlatformAdmin && (
           <>
-            <Typography variant="caption" style={styles.sectionLabel}>ORGANIZATION</Typography>
+            <Typography variant="caption" style={styles.sectionLabel}>{t('common.organization').toUpperCase()}</Typography>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {organizations.map(org => (
                 <TouchableOpacity
@@ -234,14 +236,14 @@ export const WalletScreen: React.FC = () => {
           <View style={styles.emptyBox}>
             <Icon name="card" size={40} color={COLORS.textMuted} />
             <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12, textAlign: 'center' }}>
-              Select an organization to view its wallet.
+              {t('wallet.selectOrgHint')}
             </Typography>
           </View>
         ) : (
           <>
             <View style={styles.summaryRow}>
               <View style={[styles.summaryCard, styles.balanceCard]}>
-                <Typography variant="caption" color={COLORS.textSecondary}>Total Balance</Typography>
+                <Typography variant="caption" color={COLORS.textSecondary}>{t('wallet.totalBalance')}</Typography>
                 <Typography variant="body" style={styles.balanceText}>
                   {formatMoney(wallet?.balance ?? 0, wallet?.currency)}
                 </Typography>
@@ -249,13 +251,13 @@ export const WalletScreen: React.FC = () => {
             </View>
             <View style={styles.summaryRow}>
               <View style={styles.summaryCard}>
-                <Typography variant="caption" color={COLORS.textSecondary}>Pending Payouts</Typography>
+                <Typography variant="caption" color={COLORS.textSecondary}>{t('wallet.pendingPayouts')}</Typography>
                 <Typography variant="body" style={styles.summaryValue}>
                   {formatMoney(wallet?.pending_balance ?? 0, wallet?.currency)}
                 </Typography>
               </View>
               <View style={styles.summaryCard}>
-                <Typography variant="caption" color={COLORS.textSecondary}>Total Withdrawals</Typography>
+                <Typography variant="caption" color={COLORS.textSecondary}>{t('wallet.totalWithdrawals')}</Typography>
                 <Typography variant="body" style={styles.summaryValue}>
                   {formatMoney(wallet?.total_withdrawals ?? 0, wallet?.currency)}
                 </Typography>
@@ -267,11 +269,11 @@ export const WalletScreen: React.FC = () => {
               onPress={() => {
                 if (bankAccounts.length === 0) {
                   Alert.alert(
-                    'Bank account required',
-                    'Add a bank account before requesting a withdrawal.',
+                    t('wallet.bankRequired'),
+                    t('wallet.bankRequiredHint'),
                     [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Add account', onPress: () => navigation.navigate('BankAccounts', { orgId: effectiveOrgId }) },
+                      { text: t('common.cancel'), style: 'cancel' },
+                      { text: t('common.addAccount'), onPress: () => navigation.navigate('BankAccounts', { orgId: effectiveOrgId }) },
                     ],
                   );
                   return;
@@ -281,14 +283,14 @@ export const WalletScreen: React.FC = () => {
             >
               <Icon name="send" size={18} color={COLORS.white} />
               <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700', marginLeft: 8 }}>
-                Request Withdrawal
+                {t('wallet.requestWithdrawal')}
               </Typography>
             </TouchableOpacity>
 
-            <Typography variant="caption" style={styles.sectionLabel}>TRANSACTION HISTORY</Typography>
+            <Typography variant="caption" style={styles.sectionLabel}>{t('wallet.transactionHistory')}</Typography>
             {transactions.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Typography variant="body" color={COLORS.textSecondary}>No transactions yet.</Typography>
+                <Typography variant="body" color={COLORS.textSecondary}>{t('wallet.noTransactions')}</Typography>
               </View>
             ) : (
               transactions.map(item => {
@@ -327,9 +329,9 @@ export const WalletScreen: React.FC = () => {
       <Modal visible={showWithdraw} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Typography variant="body" style={{ fontWeight: '700', marginBottom: 16 }}>Request Withdrawal</Typography>
+            <Typography variant="body" style={{ fontWeight: '700', marginBottom: 16 }}>{t('wallet.requestWithdrawal')}</Typography>
 
-            <Typography variant="caption" style={styles.inputLabel}>Amount ({wallet?.currency ?? 'RWF'})</Typography>
+            <Typography variant="caption" style={styles.inputLabel}>{t('wallet.amount')} ({wallet?.currency ?? 'RWF'})</Typography>
             <TextInput
               style={styles.input}
               placeholder="0"
@@ -338,7 +340,7 @@ export const WalletScreen: React.FC = () => {
               onChangeText={setWithdrawAmount}
             />
 
-            <Typography variant="caption" style={styles.inputLabel}>Payout bank account</Typography>
+            <Typography variant="caption" style={styles.inputLabel}>{t('wallet.payoutAccount')}</Typography>
             {bankAccounts.map(account => (
               <TouchableOpacity
                 key={account.id}
@@ -346,7 +348,7 @@ export const WalletScreen: React.FC = () => {
                 onPress={() => setSelectedBankId(account.id)}
               >
                 <Typography variant="body" style={{ fontWeight: '600' }}>
-                  {account.bank?.name ?? 'Bank'} • **** {account.account_number.slice(-4)}
+                  {account.bank?.name ?? t('wallet.bank')} • **** {account.account_number.slice(-4)}
                 </Typography>
                 <Typography variant="caption" color={COLORS.textSecondary}>{account.account_name}</Typography>
               </TouchableOpacity>
@@ -354,7 +356,7 @@ export const WalletScreen: React.FC = () => {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowWithdraw(false)}>
-                <Typography variant="body">Cancel</Typography>
+                <Typography variant="body">{t('common.cancel')}</Typography>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSubmit, withdrawing && { opacity: 0.7 }]}
@@ -364,7 +366,7 @@ export const WalletScreen: React.FC = () => {
                 {withdrawing ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
-                  <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700' }}>Submit</Typography>
+                  <Typography variant="body" color={COLORS.white} style={{ fontWeight: '700' }}>{t('common.submit')}</Typography>
                 )}
               </TouchableOpacity>
             </View>

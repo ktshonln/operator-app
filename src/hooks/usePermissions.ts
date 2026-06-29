@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiClient } from '../api/client';
-import { 
-  hasPermission, 
-  canManageUsers, 
-  canManageRoles, 
+import { useAuth } from '../contexts/AuthContext';
+import {
+  hasPermission,
+  canManageUsers,
+  canManageRoles,
   canManageOrganizations,
   canViewOrganizations,
   canManageInvitations,
@@ -12,42 +13,59 @@ import {
   canManageNotifications,
   isPlatformAdmin,
   isOrgAdmin,
+  canManageBuses,
+  canManageLocations,
   getUserOrgScope,
   canAccessOrganization,
   getAvailableMenuItems,
-  User
+  User,
 } from '../utils/permissions';
 
 export const usePermissions = () => {
+  const { user: authUser, isAuthenticated, loading: authLoading } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchUserPermissions();
-  }, []);
+  const fetchUserPermissions = useCallback(async () => {
+    if (!isAuthenticated) {
+      setUser(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
-  const fetchUserPermissions = async () => {
+    if (authUser?.permissions?.length) {
+      setUser(authUser as User);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      
       const userData = await apiClient('/users/me', { method: 'GET' });
       setUser(userData);
     } catch (err: any) {
+      if (err?.isAborted) return;
       console.error('Failed to fetch user permissions:', err);
       setError(err.message || 'Failed to load permissions');
       setUser(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, authUser]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void fetchUserPermissions();
+  }, [authLoading, fetchUserPermissions]);
 
   const refetch = () => {
-    fetchUserPermissions();
+    void fetchUserPermissions();
   };
 
-  // Memoize permission checks to prevent excessive re-calculations
   const permissionChecks = useMemo(() => {
     if (!user) {
       return {
@@ -61,6 +79,8 @@ export const usePermissions = () => {
         canManageNotifications: false,
         isPlatformAdmin: false,
         isOrgAdmin: false,
+        canManageBuses: false,
+        canManageLocations: false,
         getUserOrgScope: null,
       };
     }
@@ -76,27 +96,23 @@ export const usePermissions = () => {
       canManageNotifications: canManageNotifications(user),
       isPlatformAdmin: isPlatformAdmin(user),
       isOrgAdmin: isOrgAdmin(user),
+      canManageBuses: canManageBuses(user),
+      canManageLocations: canManageLocations(user),
       getUserOrgScope: getUserOrgScope(user),
     };
   }, [user]);
 
-  // Permission check functions
   const checkPermission = (action: string, subject: string, resourceId?: string) => {
     return hasPermission(user, action, subject, resourceId);
   };
 
   return {
-    // User data
     user,
-    loading,
+    loading: authLoading || loading,
     error,
     refetch,
-
-    // Permission check functions
     checkPermission,
     ...permissionChecks,
-
-    // Utility functions
     canAccessOrganization: (orgId: string) => canAccessOrganization(user, orgId),
     getAvailableMenuItems: getAvailableMenuItems(user),
   };

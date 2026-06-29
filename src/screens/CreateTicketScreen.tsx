@@ -148,8 +148,8 @@ export const CreateTicketScreen: React.FC = () => {
     const loadPrice = async () => {
       try {
         const prices = await getPrices({
-          boarding_stop: boardingStop.location_id,
-          alighting_stop: alightingStop.location_id,
+          boarding_stop_id: boardingStop.location_id,
+          alighting_stop_id: alightingStop.location_id,
         });
         const match = prices.find(
           p =>

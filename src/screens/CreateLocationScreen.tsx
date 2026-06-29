@@ -1,17 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { MapLocationPicker } from '../components/MapLocationPicker';
 import { COLORS } from '../theme/colors';
 import { createLocation } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const PROVINCES = ['Kigali City', 'Northern Province', 'Southern Province', 'Eastern Province', 'Western Province'];
 
 export const CreateLocationScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
+  const { canManageLocations, loading: permissionsLoading } = usePermissions();
   const [name, setName] = useState('');
   const [province, setProvince] = useState('');
   const [lat, setLat] = useState('');
@@ -20,6 +24,15 @@ export const CreateLocationScreen: React.FC = () => {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (!canManageLocations) {
+      Alert.alert(t('locations.platformOnlyTitle'), t('locations.platformOnlyMessage'), [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
+      ]);
+    }
+  }, [permissionsLoading, canManageLocations, navigation, t]);
 
   const handleCreate = async () => {
     if (!name.trim() || !province || !lat || !lng) {
@@ -57,9 +70,10 @@ export const CreateLocationScreen: React.FC = () => {
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to create location';
       const errorDetails = error.data?.error?.code || '';
+      const forbiddenHint = errorDetails === 'FORBIDDEN' ? `\n\n${t('locations.platformOnlyMessage')}` : '';
       Alert.alert(
         'Error',
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
+        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}${forbiddenHint}` : `${errorMessage}${forbiddenHint}`,
       );
     } finally {
       setLoading(false);

@@ -1,15 +1,19 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { Location } from '../mock/transportData';
 import { getLocations, deleteLocation } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
 
 export const LocationsListScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const { canManageLocations, loading: permissionsLoading } = usePermissions();
   const [locations, setLocations] = useState<Location[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -29,13 +33,13 @@ export const LocationsListScreen: React.FC = () => {
       console.error('Failed to fetch locations:', error);
       
       // Show the actual backend error message
-      const errorMessage = error.message || 'Unable to load locations from server';
+      const errorMessage = error.message || t('locations.unableToLoad');
       const errorDetails = error.data?.error?.code || '';
       
       Alert.alert(
-        'Error Loading Locations', 
-        errorDetails ? `${errorMessage}\n\nError: ${errorDetails}` : errorMessage,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        t('locations.errorLoading'), 
+        errorDetails ? t('common.errorDetails', { message: errorMessage, code: errorDetails }) : errorMessage,
+        [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
       );
       setLocations([]);
     } finally {
@@ -49,19 +53,27 @@ export const LocationsListScreen: React.FC = () => {
     (l.city && l.city.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const handleAdd = () => {
+    if (!canManageLocations) {
+      Alert.alert(t('locations.platformOnlyTitle'), t('locations.platformOnlyMessage'));
+      return;
+    }
+    navigation.navigate('CreateLocation');
+  };
+
   const handleDelete = async (id: string) => {
-    Alert.alert('Delete Location', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('locations.deleteTitle'), t('locations.deleteConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       { 
-        text: 'Delete', 
+        text: t('common.delete'), 
         style: 'destructive', 
         onPress: async () => {
           try {
             await deleteLocation(id);
             setLocations(prev => prev.filter(l => l.id !== id));
-            Alert.alert('Success', 'Location deleted successfully');
+            Alert.alert(t('common.success'), t('locations.deleted'));
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to delete location');
+            Alert.alert(t('common.error'), error.message || t('locations.deleteFailed'));
           }
         }
       },
@@ -75,22 +87,36 @@ export const LocationsListScreen: React.FC = () => {
       </View>
       <View style={styles.cardBody}>
         <Typography variant="body" style={styles.name}>{item.name}</Typography>
-        <Typography variant="caption" color={COLORS.textSecondary}>{item.city || item.province || 'N/A'}</Typography>
+        <Typography variant="caption" color={COLORS.textSecondary}>{item.city || item.province || t('common.notAvailable')}</Typography>
         <Typography variant="caption" color={COLORS.textMuted}>{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</Typography>
       </View>
-      <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
-        <Icon name="trash" size={18} color={COLORS.error} />
-      </TouchableOpacity>
+      {canManageLocations && (
+        <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
+          <Icon name="trash" size={18} color={COLORS.error} />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 
-  if (loading) {
+  const headerRight = canManageLocations ? (
+    <Header
+      title={t('locations.title')}
+      showBack
+      onBack={() => navigation.goBack()}
+      rightIcon="add"
+      onRightPress={handleAdd}
+    />
+  ) : (
+    <Header title={t('locations.title')} showBack onBack={() => navigation.goBack()} rightElement={<View />} />
+  );
+
+  if (loading || permissionsLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header title="Locations" showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateLocation')} />
+        {headerRight}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.brand} />
-          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>Loading locations...</Typography>
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>{t('locations.loading')}</Typography>
         </View>
       </SafeAreaView>
     );
@@ -98,12 +124,17 @@ export const LocationsListScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Locations" showBack onBack={() => navigation.goBack()} rightIcon="add" onRightPress={() => navigation.navigate('CreateLocation')} />
+      {headerRight}
+      {!canManageLocations && (
+        <Typography variant="caption" color={COLORS.textMuted} style={styles.readOnlyHint}>
+          {t('locations.readOnlyHint')}
+        </Typography>
+      )}
       <View style={styles.searchRow}>
         <Icon name="search" size={18} color={COLORS.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search locations..."
+          placeholder={t('locations.searchPlaceholder')}
           placeholderTextColor={COLORS.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -122,7 +153,7 @@ export const LocationsListScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Icon name="map" size={40} color={COLORS.textMuted} />
-            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>No locations found</Typography>
+            <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>{t('locations.empty')}</Typography>
           </View>
         }
       />
@@ -136,6 +167,7 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: COLORS.white, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: COLORS.text },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
+  readOnlyHint: { marginHorizontal: 16, marginBottom: 8 },
   card: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 14, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
   cardIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.brandLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   cardBody: { flex: 1 },

@@ -6,7 +6,8 @@ import { Typography } from '../components/Typography';
 import { Icon } from '../components/Icon';
 import { COLORS } from '../theme/colors';
 import { Route } from '../mock/transportData';
-import { getRouteById } from '../api';
+import { getRouteById, updateRoute } from '../api';
+import { RouteFareSetup } from '../components/RouteFareSetup';
 
 export const RouteDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -15,38 +16,60 @@ export const RouteDetailScreen: React.FC = () => {
   const [routeData, setRouteData] = useState<Route | null>(routeParam.params?.route ?? null);
   const [status, setStatus] = useState(routeParam.params?.route?.status ?? 'inactive');
   const [loading, setLoading] = useState(true);
+  const [savingStatus, setSavingStatus] = useState(false);
 
-  useEffect(() => {
+  const loadRoute = async () => {
     if (!routeId) {
       setLoading(false);
       return;
     }
+    try {
+      setLoading(true);
+      const data = await getRouteById(routeId);
+      setRouteData(data);
+      setStatus(data.status);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to load route details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const fetchRoute = async () => {
-      try {
-        setLoading(true);
-        const data = await getRouteById(routeId);
-        setRouteData(data);
-        setStatus(data.status);
-      } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to load route details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRoute();
+  useEffect(() => {
+    void loadRoute();
   }, [routeId]);
 
   const toggleStatus = () => {
     if (routeData?.prices_complete === false && status === 'inactive') {
-      Alert.alert('Cannot Activate', 'All stop-pair prices must be defined before activating this route.');
+      Alert.alert(
+        'Cannot Activate',
+        'All stop-pair prices must be defined before activating this route. Open Price Matrix and set every fare for this route.',
+      );
       return;
     }
     const next = status === 'active' ? 'inactive' : 'active';
     Alert.alert('Confirm', `Set route to ${next}?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => setStatus(next) },
+      {
+        text: 'Confirm',
+        onPress: async () => {
+          setSavingStatus(true);
+          try {
+            await updateRoute(routeId, { status: next });
+            setStatus(next);
+            await loadRoute();
+            Alert.alert('Success', `Route is now ${next}.`);
+          } catch (error: any) {
+            const code = error.data?.error?.code ?? '';
+            Alert.alert(
+              'Error',
+              code ? `${error.message}\n\nError: ${code}` : error.message || 'Failed to update route status',
+            );
+          } finally {
+            setSavingStatus(false);
+          }
+        },
+      },
     ]);
   };
 
@@ -83,9 +106,9 @@ export const RouteDetailScreen: React.FC = () => {
               {status.toUpperCase()}
             </Typography>
           </View>
-          <TouchableOpacity style={styles.toggleBtn} onPress={toggleStatus}>
+          <TouchableOpacity style={styles.toggleBtn} onPress={toggleStatus} disabled={savingStatus}>
             <Typography variant="caption" color={COLORS.brand} style={{ fontWeight: '600' }}>
-              {status === 'active' ? 'Deactivate' : 'Activate'}
+              {savingStatus ? 'Saving...' : status === 'active' ? 'Deactivate' : 'Activate'}
             </Typography>
           </TouchableOpacity>
         </View>
@@ -126,6 +149,10 @@ export const RouteDetailScreen: React.FC = () => {
 
         {/* Price matrix link */}
         {routeData.prices_complete === false && (
+          <RouteFareSetup route={routeData} onSaved={loadRoute} />
+        )}
+
+        {routeData.prices_complete === false && (
           <View style={styles.warningBox}>
             <Icon name="alert" size={18} color="#F57C00" />
             <Typography variant="caption" style={{ color: '#F57C00', marginLeft: 8, flex: 1 }}>
@@ -134,7 +161,13 @@ export const RouteDetailScreen: React.FC = () => {
           </View>
         )}
 
-        <TouchableOpacity style={styles.priceBtn} onPress={() => navigation.navigate('PriceMatrix')}>
+        <TouchableOpacity
+          style={styles.priceBtn}
+          onPress={() => navigation.navigate('PriceMatrix', {
+            routeId: routeData.id,
+            routeName: routeData.name,
+          })}
+        >
           <Icon name="dollar-sign" size={18} color={COLORS.brand} />
           <Typography variant="body" color={COLORS.brand} style={{ marginLeft: 8, fontWeight: '600' }}>View Price Matrix</Typography>
           <Icon name="chevron-right" size={18} color={COLORS.brand} style={{ marginLeft: 'auto' }} />
